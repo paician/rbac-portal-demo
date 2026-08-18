@@ -35,7 +35,7 @@ button { color: inherit; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 255px minmax(0, 1fr); }
 .sidebar {
-  position: sticky; top: 0; height: 100vh; overflow: hidden;
+  position: sticky; z-index: 100; top: 0; height: 100vh; overflow: hidden;
   padding: 28px 18px 22px;
   color: #fff9ef;
   background:
@@ -361,3 +361,78 @@ td { padding: 11px 12px; font-size: 12px; vertical-align: middle; }
 @media (max-width: 430px) {
   .identity-panel .identity-grid { grid-template-columns: 1fr; }
 }
+
+
+/* R2.5 Admin-only synthetic Runtime Warning Indicator */
+.topbar-actions{display:flex;align-items:flex-start;justify-content:flex-end;gap:10px;min-width:0}
+.runtime-warning{position:relative;z-index:31;flex:0 0 auto}
+.runtime-warning-toggle{display:flex;align-items:center;gap:7px;min-height:46px;padding:8px 11px;border:1px solid #dfb46d;border-radius:999px;background:rgba(255,247,229,.94);color:#81531f;box-shadow:0 7px 24px rgba(91,56,21,.08);cursor:pointer;font-size:11px;font-weight:850;white-space:nowrap}
+.runtime-warning-toggle:hover,.runtime-warning.open .runtime-warning-toggle{background:#fff2d8;border-color:#c98d39}
+.runtime-warning-icon{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#c47b28;color:#fff;font-weight:950;font-size:13px;box-shadow:0 0 0 4px rgba(196,123,40,.10)}
+.runtime-warning-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(390px,calc(100vw - 44px));padding:16px;border:1px solid #dfc08e;border-radius:18px;background:rgba(255,249,238,.98);box-shadow:0 22px 58px rgba(55,35,22,.18);backdrop-filter:blur(12px)}
+.runtime-warning-panel::before{content:"";position:absolute;top:-7px;right:24px;width:13px;height:13px;background:rgba(255,249,238,.98);border-left:1px solid #dfc08e;border-top:1px solid #dfc08e;transform:rotate(45deg)}
+.runtime-warning-heading{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:13px}.runtime-warning-heading strong{display:block;margin-top:4px;font-size:16px}.runtime-status-badge{border-radius:999px;padding:5px 9px;background:#f0d3a5;color:#7a4516;font-size:10px;font-weight:900}
+.runtime-warning-grid{margin:0;display:grid;gap:0;border:1px solid #ead7b7;border-radius:12px;overflow:hidden;background:#fffdf8}.runtime-warning-grid>div{display:grid;grid-template-columns:minmax(130px,1fr) minmax(120px,.9fr);gap:14px;padding:9px 11px;border-bottom:1px solid #efe0c7}.runtime-warning-grid>div:last-child{border-bottom:0}.runtime-warning-grid dt{color:#8b725c;font-size:10px}.runtime-warning-grid dd{margin:0;text-align:right;color:#493526;font-size:11px;font-weight:850}.runtime-warning-boundary{margin-top:11px;padding:9px 10px;border:1px dashed #d8b87f;border-radius:10px;background:#f8ecd7;color:#80654d;font-size:9px;line-height:1.55}
+@media(max-width:980px){.topbar-actions{gap:8px}.runtime-warning-toggle{padding-inline:9px}.runtime-warning-toggle #runtimeWarningLabel{display:none}}
+@media(max-width:780px){.topbar-actions{order:3;display:grid;grid-template-columns:1fr;justify-items:stretch;width:100%}.runtime-warning{justify-self:start}.runtime-warning-toggle #runtimeWarningLabel{display:inline}.identity-card.identity-floating{order:initial}.runtime-warning-panel{position:fixed;left:14px;right:14px;top:140px;width:auto;max-width:none}.runtime-warning-panel::before{display:none}}
+@media(max-width:430px){.runtime-warning{width:100%}.runtime-warning-toggle{width:100%;justify-content:center;border-radius:13px}.runtime-warning-grid>div{grid-template-columns:1fr;gap:4px}.runtime-warning-grid dd{text-align:left}}
+
+
+/* R2.6 App Shell: Runtime + Identity in Sidebar; synthetic permission freshness banner */
+.sidebar-inner{display:flex;flex-direction:column;height:100%;min-height:0}
+.brand{flex:0 0 auto;margin-bottom:16px}
+.side-nav{flex:0 0 auto}
+.sidebar-footer{position:relative;left:auto;bottom:auto;margin-top:auto;padding-top:20px;color:#d9b991}
+.topbar{display:block;min-height:auto;margin-bottom:14px}
+.role-control{max-width:780px}
+.topbar-actions{display:none!important}
+
+.runtime-warning.runtime-sidebar{position:relative;z-index:31;flex:0 0 auto;margin:0 0 18px}
+.runtime-sidebar .runtime-warning-toggle{width:100%;min-height:42px;justify-content:flex-start;padding:7px 10px;border-color:rgba(240,212,173,.35);border-radius:12px;background:rgba(255,255,255,.06);color:#f0d4ad;box-shadow:none}
+.runtime-sidebar .runtime-warning-toggle:hover,.runtime-sidebar.open .runtime-warning-toggle{background:rgba(255,255,255,.12);border-color:rgba(240,212,173,.7)}
+.runtime-sidebar .runtime-warning-icon{width:24px;height:24px;background:#c47b28;box-shadow:0 0 0 3px rgba(196,123,40,.14)}
+.runtime-sidebar .runtime-warning-panel{position:fixed;z-index:140;top:116px;left:267px;right:auto;width:min(390px,calc(100vw - 310px));color:var(--ink)}
+.runtime-sidebar .runtime-warning-panel::before{top:28px;left:-7px;right:auto;border-left:1px solid #dfc08e;border-top:1px solid #dfc08e;transform:rotate(-45deg)}
+.sidebar-collapsed .runtime-sidebar{display:grid;place-items:center}
+.sidebar-collapsed .runtime-sidebar .runtime-warning-toggle{width:46px;min-width:46px;justify-content:center;padding:7px}
+.sidebar-collapsed .runtime-sidebar .runtime-warning-label{display:none}
+.sidebar-collapsed .runtime-sidebar .runtime-warning-panel{left:94px}
+
+.identity-card.identity-sidebar{position:relative;z-index:32;width:100%;display:block;justify-self:auto;margin-top:14px;padding:0;border:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.identity-sidebar .identity-toggle{width:100%;min-width:0;max-width:none;grid-template-columns:36px minmax(0,1fr) 18px;padding:9px;border:1px solid rgba(240,212,173,.32);border-radius:13px;background:rgba(255,255,255,.06);box-shadow:none;color:#fff8ee}
+.identity-sidebar .identity-toggle:hover,.identity-sidebar.open .identity-toggle{background:rgba(255,255,255,.12);border-color:rgba(240,212,173,.7)}
+.identity-sidebar .identity-compact-name{max-width:none;color:#fff8ee}
+.identity-sidebar .role-badge{width:max-content;background:rgba(240,212,173,.14);color:#f0d4ad}
+.identity-sidebar .identity-caret{color:#f0d4ad}
+.identity-sidebar .identity-panel{top:auto;right:auto;left:0;bottom:calc(100% + 10px);width:100%;color:var(--ink)}
+.identity-sidebar .identity-panel::before{top:auto;right:24px;bottom:-7px;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.identity-sidebar .identity-panel .role-badge{background:var(--sand-100);color:var(--wood-700)}
+.sidebar-collapsed .identity-sidebar .identity-toggle{grid-template-columns:36px;width:46px;margin-inline:auto;padding:5px;justify-content:center}
+.sidebar-collapsed .identity-sidebar .identity-compact-copy,.sidebar-collapsed .identity-sidebar .identity-caret{display:none}
+.sidebar-collapsed .identity-sidebar .identity-panel{position:fixed;left:94px;bottom:22px;width:300px}
+.sidebar-collapsed .identity-sidebar .identity-panel::before{display:none}
+
+.permission-notice{margin:0 0 16px;display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:13px;padding:13px 15px;border:1px solid #dfbf8b;border-radius:14px;background:rgba(255,248,233,.94);box-shadow:0 8px 24px rgba(92,56,22,.06)}
+.permission-notice.reauth{border-color:#d99b93;background:rgba(255,243,240,.96)}
+.permission-notice-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#c7832f;color:white;font-weight:950}
+.permission-notice.reauth .permission-notice-icon{background:#b75e57}
+.permission-notice-copy{min-width:0}.permission-notice-copy strong{display:block;color:#4b3426;font-size:13px}.permission-notice-copy p{margin:3px 0 2px;color:#745f50;font-size:11px;line-height:1.55}.permission-notice-copy small{color:#a18a78;font-size:9px}
+.permission-notice-action{border:0;border-radius:10px;padding:9px 13px;background:linear-gradient(135deg,#9d642e,#b67f44);color:white;font-weight:850;cursor:pointer;white-space:nowrap}.permission-notice.reauth .permission-notice-action{background:linear-gradient(135deg,#9e514c,#b86a62)}
+
+@media(max-width:780px){
+  .sidebar-inner{min-height:100%;height:auto}
+  .sidebar-footer{margin-top:30px;padding-top:0}
+  .runtime-sidebar .runtime-warning-toggle{width:100%}
+  .runtime-sidebar .runtime-warning-label{display:inline!important}
+  .runtime-sidebar .runtime-warning-panel,.sidebar-collapsed .runtime-sidebar .runtime-warning-panel{position:static;left:auto;right:auto;top:auto;width:100%;max-width:none;margin-top:8px}
+  .runtime-sidebar .runtime-warning-panel::before{display:none}
+  .identity-card.identity-sidebar,.sidebar-collapsed .identity-card.identity-sidebar{width:100%;margin-top:14px}
+  .identity-sidebar .identity-toggle,.sidebar-collapsed .identity-sidebar .identity-toggle{width:100%;grid-template-columns:36px minmax(0,1fr) 18px;margin:0;padding:9px;border-radius:13px}
+  .sidebar-collapsed .identity-sidebar .identity-compact-copy,.sidebar-collapsed .identity-sidebar .identity-caret{display:grid}
+  .sidebar-collapsed .identity-sidebar .identity-caret{display:block}
+  .identity-sidebar .identity-panel,.sidebar-collapsed .identity-sidebar .identity-panel{position:static;width:100%;margin-top:9px}
+  .identity-sidebar .identity-panel::before{display:none}
+  .permission-notice{grid-template-columns:34px minmax(0,1fr);gap:10px;padding:12px}
+  .permission-notice-action{grid-column:1/-1;width:100%}
+}
+@media(max-width:430px){.permission-notice{grid-template-columns:1fr}.permission-notice-icon{display:none}.permission-notice-action{grid-column:auto}}

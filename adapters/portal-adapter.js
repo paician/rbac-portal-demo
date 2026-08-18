@@ -13,6 +13,21 @@ const validResources = new Set(RESOURCE_CATALOG.map(r => r.key));
 let peopleCache = null;
 let auditCache = null;
 
+// UX-only synthetic runtime warning. This object is not a production health schema or adapter contract.
+const SYNTHETIC_RUNTIME_WARNING = Object.freeze({
+  authorizationStatus: 'degraded',
+  cacheState: 'last-known-good',
+  cacheAgeMinutes: 8,
+  maxStaleMinutes: 15,
+  lastReconciliationMinutesAgo: 2
+});
+
+// UX-only permission freshness states. These are query-driven presentation fixtures, not a session or authorization schema.
+const SYNTHETIC_PERMISSION_NOTICE = Object.freeze({
+  refresh: Object.freeze({ state: 'refresh' }),
+  reauth: Object.freeze({ state: 'reauth' })
+});
+
 function read(key, fallback) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
 }
@@ -38,7 +53,9 @@ function runtime() {
   const effectiveRoleKey = loginRoleKey === 'admin' && ROLE_BY_KEY[requestedPreview] ? requestedPreview : loginRoleKey;
   const requestedPage = params.get('page') || 'home';
   const page = loginRoleKey === 'admin' && ['home', 'resource-settings', 'people-overview', 'audit'].includes(requestedPage) ? requestedPage : 'home';
-  return { loginRoleKey, loginRole, effectiveRoleKey, effectiveRole: ROLE_BY_KEY[effectiveRoleKey], page };
+  const requestedPermissionState = params.get('permissionState');
+  const permissionState = requestedPermissionState === 'refresh' || requestedPermissionState === 'reauth' ? requestedPermissionState : 'current';
+  return { loginRoleKey, loginRole, effectiveRoleKey, effectiveRole: ROLE_BY_KEY[effectiveRoleKey], page, permissionState };
 }
 function normalizeSearch(value) { return String(value || '').trim().toLocaleLowerCase(); }
 function peopleRecords() {
@@ -62,6 +79,8 @@ export function getPortalContext() {
     navigation: NAVIGATION_BY_ROLE[r.loginRoleKey], resources: catalog.filter(x => x.enabled && granted.has(x.key)), catalog, allRoles: ROLES,
     baseSettings: Object.freeze({ ...DEFAULT_BASE_SETTINGS, ...read(STORAGE_KEYS.base, {}) }),
     canPreviewRoles: caps.includes('preview_roles'), canViewComparison: caps.includes('view_comparison') && r.effectiveRoleKey === 'admin', canManageResources: caps.includes('manage_resources'), canViewPeople: caps.includes('view_people'), canViewAudit: caps.includes('view_audit'),
+    canViewRuntimeWarning: caps.includes('view_runtime_warning'), syntheticRuntimeWarning: caps.includes('view_runtime_warning') ? SYNTHETIC_RUNTIME_WARNING : null,
+    permissionFreshnessState: r.permissionState, syntheticPermissionNotice: SYNTHETIC_PERMISSION_NOTICE[r.permissionState] || null,
     hasGrant: (roleKey, resourceKey) => grants.some(g => g.roleKey === roleKey && g.resourceKey === resourceKey)
   });
 }

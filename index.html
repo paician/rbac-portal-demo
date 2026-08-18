@@ -17,8 +17,50 @@
           <div class="brand-mark">F</div>
           <div class="brand-copy"><div class="brand-title">Finance SSC</div><div class="brand-subtitle">Access Gateway</div></div>
         </div>
+        <section id="runtimeWarning" class="runtime-warning runtime-sidebar" hidden>
+          <button id="runtimeWarningToggle" class="runtime-warning-toggle" type="button" aria-expanded="false" aria-controls="runtimeWarningPanel">
+            <span class="runtime-warning-icon" aria-hidden="true">!</span>
+            <span id="runtimeWarningLabel" class="runtime-warning-label"></span>
+          </button>
+          <div id="runtimeWarningPanel" class="runtime-warning-panel" hidden>
+            <div class="runtime-warning-heading">
+              <div><div id="runtimeWarningEyebrow" class="eyebrow"></div><strong id="runtimeWarningTitle"></strong></div>
+              <span id="runtimeAuthorizationBadge" class="runtime-status-badge"></span>
+            </div>
+            <dl class="runtime-warning-grid">
+              <div><dt id="runtimeAuthorizationLabel"></dt><dd id="runtimeAuthorizationValue"></dd></div>
+              <div><dt id="runtimeCacheStateLabel"></dt><dd id="runtimeCacheStateValue"></dd></div>
+              <div><dt id="runtimeCacheAgeLabel"></dt><dd id="runtimeCacheAgeValue"></dd></div>
+              <div><dt id="runtimeMaxStaleLabel"></dt><dd id="runtimeMaxStaleValue"></dd></div>
+              <div><dt id="runtimeLastReconciliationLabel"></dt><dd id="runtimeLastReconciliationValue"></dd></div>
+            </dl>
+            <div id="runtimeWarningBoundary" class="runtime-warning-boundary"></div>
+          </div>
+        </section>
         <nav id="sideNav" class="side-nav"></nav>
         <div class="sidebar-footer">FIN-SSC RBAC Demo<br><span id="syntheticLabel"></span></div>
+        <section id="identityCard" class="identity-card identity-floating identity-sidebar">
+          <button id="identityToggle" class="identity-toggle" type="button" aria-expanded="false" aria-controls="identityPanel">
+            <span id="identityAvatar" class="identity-avatar">E</span>
+            <span class="identity-compact-copy">
+              <span id="identityName" class="identity-compact-name"></span>
+              <span id="identityRole" class="role-badge"></span>
+            </span>
+            <span class="identity-caret" aria-hidden="true">⌄</span>
+          </button>
+          <div id="identityPanel" class="identity-panel" hidden>
+            <div class="identity-panel-heading">
+              <span class="identity-avatar panel-avatar">E</span>
+              <div><strong id="identityPanelName"></strong><span id="identityPanelRole" class="role-badge"></span></div>
+            </div>
+            <dl class="identity-grid">
+              <div><dt id="labelLarkName"></dt><dd id="profileName"></dd></div>
+              <div><dt id="labelDepartment"></dt><dd id="profileDepartment"></dd></div>
+              <div><dt id="labelBrand"></dt><dd id="profileBrand"></dd></div>
+              <div><dt id="labelTitle"></dt><dd id="profileTitle"></dd></div>
+            </dl>
+          </div>
+        </section>
       </div>
       <button id="sidebarCollapse" class="sidebar-collapse" type="button">‹</button>
     </aside>
@@ -32,29 +74,17 @@
           <div id="roleSwitcher" class="role-switcher"></div>
           <p id="roleHelper" class="role-helper"></p>
         </section>
-        <section id="identityCard" class="identity-card identity-floating">
-          <button id="identityToggle" class="identity-toggle" type="button" aria-expanded="false" aria-controls="identityPanel">
-            <span id="identityAvatar" class="identity-avatar">p</span>
-            <span class="identity-compact-copy">
-              <span id="identityName" class="identity-compact-name"></span>
-              <span id="identityRole" class="role-badge"></span>
-            </span>
-            <span class="identity-caret" aria-hidden="true">⌄</span>
-          </button>
-          <div id="identityPanel" class="identity-panel" hidden>
-            <div class="identity-panel-heading">
-              <span class="identity-avatar panel-avatar">p</span>
-              <div><strong id="identityPanelName"></strong><span id="identityPanelRole" class="role-badge"></span></div>
-            </div>
-            <dl class="identity-grid">
-              <div><dt id="labelLarkName"></dt><dd id="profileName"></dd></div>
-              <div><dt id="labelDepartment"></dt><dd id="profileDepartment"></dd></div>
-              <div><dt id="labelBrand"></dt><dd id="profileBrand"></dd></div>
-              <div><dt id="labelTitle"></dt><dd id="profileTitle"></dd></div>
-            </dl>
-          </div>
-        </section>
       </header>
+
+      <section id="permissionNotice" class="permission-notice" hidden role="status" aria-live="polite">
+        <div class="permission-notice-icon" aria-hidden="true">!</div>
+        <div class="permission-notice-copy">
+          <strong id="permissionNoticeTitle"></strong>
+          <p id="permissionNoticeBody"></p>
+          <small id="permissionNoticeBoundary"></small>
+        </div>
+        <button id="permissionNoticeAction" class="permission-notice-action" type="button"></button>
+      </section>
 
       <section id="homeView" class="page-view">
         <section class="welcome-card">

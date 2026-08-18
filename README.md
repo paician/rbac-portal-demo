@@ -1,4 +1,4 @@
-# FIN-SSC RBAC Demo R2.2
+# RBAC Portal Demo R2.5
 
 GitHub Pages 相容的 Vanilla HTML/CSS/JavaScript Prototype，用於驗證 Finance SSC Portal 的 Role-based UI、Resource Catalog、管理員 Authoring UI、人員目錄、Audit、多語與 H5 響應式行為。所有資料均為 synthetic data。
 
@@ -106,3 +106,36 @@ node .\tools\build-bundle.mjs
 - Synthetic display name is `Evren`; GitHub account identity is intentionally kept separate from in-app demo identities.
 - Admin `viewAs=employee|finance|manager` hides the role/resource comparison table; only admin-as-admin can see the comparison table.
 - For GitHub publishing, use the repository owner account configured in Git. Do not expose real employee, tenant, Base, credential, production URL, or internal organization data in this prototype.
+
+
+## Admin-only Runtime Warning Indicator
+
+管理員登入時顯示 synthetic Runtime Warning Indicator；一般角色完全不可見。管理員使用 `viewAs` 預覽其他角色時仍保持可見，因為登入 Principal 仍為 Admin。
+
+展示資料固定為 synthetic UX：
+
+- Authorization Status: `Degraded`
+- Cache State: `Last-known-good`
+- Cache Age: `8 min`
+- Max Stale: `15 min`
+- Last Reconciliation: `2 min ago`
+
+此功能只驗證 hover / click 狀態提示的 UX，不建立正式 Runtime Health domain/schema，不連 Redis、Base、PostgreSQL，也不代表 Production health contract。
+
+
+## R2.6 Shell / Permission freshness UX
+
+- Admin-only Runtime Warning 已移至 Sidebar，仍僅為 synthetic UX indicator。
+- Identity Card 已移至 Sidebar 底部，身份資料仍為 synthetic。
+- 新增使用者 Permission Freshness Banner，可用 query parameter 模擬：
+  - `?permissionState=current`：不顯示提示（預設）
+  - `?permissionState=refresh`：顯示「更新權限」提醒
+  - `?permissionState=reauth`：顯示「重新登入」提醒
+- Banner action 目前只把 query state 重設為 `current`；沒有執行真正 cache invalidation、session refresh 或重新登入。
+- 不建立正式 health、session freshness 或 authorization freshness schema；不接 Redis、Base、PostgreSQL。
+
+
+## R2.7 UI micro-adjustment
+
+- Runtime Warning popover 在桌面版提升至 App Shell 最上層，避免被 Main Content 卡片覆蓋。
+- 僅調整 stacking order；RBAC、View-As、Permission Freshness 與 synthetic runtime payload 不變。
