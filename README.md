@@ -98,4 +98,11 @@ JavaScript RBAC 只用於 Prototype UI，不是 security boundary。正式系統
 ```powershell
 node .\tools\build-bundle.mjs
 ```
-"# FIN-SSC-RBAC-Demo" 
+
+
+## R2.3 notes
+
+- Identity display is compact by default and opens a floating panel on click.
+- Synthetic display name is `Evren`; GitHub account identity is intentionally kept separate from in-app demo identities.
+- Admin `viewAs=employee|finance|manager` hides the role/resource comparison table; only admin-as-admin can see the comparison table.
+- For GitHub publishing, use the repository owner account configured in Git. Do not expose real employee, tenant, Base, credential, production URL, or internal organization data in this prototype.

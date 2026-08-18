@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3a2418">
+  <meta name="description" content="Finance SSC Portal RBAC 互動式原型">
+  <title>Finance SSC Portal｜RBAC Prototype</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebar" aria-label="主選單">
+      <div class="sidebar-inner">
+        <button id="aboutButton" class="about-button" type="button" aria-label="關於系統">?</button>
+        <div class="brand">
+          <div class="brand-mark">F</div>
+          <div class="brand-copy"><div class="brand-title">Finance SSC</div><div class="brand-subtitle">Access Gateway</div></div>
+        </div>
+        <nav id="sideNav" class="side-nav"></nav>
+        <div class="sidebar-footer">FIN-SSC RBAC Demo<br><span id="syntheticLabel"></span></div>
+      </div>
+      <button id="sidebarCollapse" class="sidebar-collapse" type="button">‹</button>
+    </aside>
+    <div id="mobileNavBackdrop" class="mobile-nav-backdrop" hidden></div>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="mobile-topbar-row"><button id="mobileMenuButton" class="mobile-menu-button" type="button">☰</button><strong>Finance SSC</strong></div>
+        <section id="roleControl" class="role-control" hidden>
+          <div id="roleEyebrow" class="eyebrow"></div>
+          <div id="roleSwitcher" class="role-switcher"></div>
+          <p id="roleHelper" class="role-helper"></p>
+        </section>
+        <section id="identityCard" class="identity-card identity-floating">
+          <button id="identityToggle" class="identity-toggle" type="button" aria-expanded="false" aria-controls="identityPanel">
+            <span id="identityAvatar" class="identity-avatar">p</span>
+            <span class="identity-compact-copy">
+              <span id="identityName" class="identity-compact-name"></span>
+              <span id="identityRole" class="role-badge"></span>
+            </span>
+            <span class="identity-caret" aria-hidden="true">⌄</span>
+          </button>
+          <div id="identityPanel" class="identity-panel" hidden>
+            <div class="identity-panel-heading">
+              <span class="identity-avatar panel-avatar">p</span>
+              <div><strong id="identityPanelName"></strong><span id="identityPanelRole" class="role-badge"></span></div>
+            </div>
+            <dl class="identity-grid">
+              <div><dt id="labelLarkName"></dt><dd id="profileName"></dd></div>
+              <div><dt id="labelDepartment"></dt><dd id="profileDepartment"></dd></div>
+              <div><dt id="labelBrand"></dt><dd id="profileBrand"></dd></div>
+              <div><dt id="labelTitle"></dt><dd id="profileTitle"></dd></div>
+            </dl>
+          </div>
+        </section>
+      </header>
+
+      <section id="homeView" class="page-view">
+        <section class="welcome-card">
+          <div id="welcomeIcon" class="welcome-icon">E</div>
+          <div class="welcome-copy"><div id="homeEyebrow" class="eyebrow"></div><h1 id="welcomeTitle"></h1><p id="welcomeText"></p></div>
+          <div class="landscape"><span class="sun"></span><span class="ridge ridge-back"></span><span class="ridge ridge-front"></span></div>
+        </section>
+        <section id="metricGrid" class="metric-grid"></section>
+        <section class="panel resource-panel">
+          <div class="panel-heading"><div><div id="catalogEyebrow" class="eyebrow"></div><h2 id="catalogTitle"></h2><p id="catalogSubtitle"></p></div><span id="resourceCount" class="count-chip"></span></div>
+          <div class="table-wrap"><table><thead><tr><th id="resourceSystemHeader"></th><th id="resourceCategoryHeader"></th><th id="resourceDescriptionHeader"></th><th id="resourceAccessHeader"></th><th id="resourceActionHeader"></th></tr></thead><tbody id="resourceRows"></tbody></table></div>
+          <div id="mobileResourceList" class="mobile-resource-list"></div>
+        </section>
+        <section id="comparisonPanel" class="panel" hidden>
+          <div class="panel-heading"><div><div id="comparisonEyebrow" class="eyebrow"></div><h2 id="comparisonTitle"></h2><p id="comparisonSubtitle"></p></div><span id="comparisonAdminChip" class="admin-chip"></span></div>
+          <div class="table-wrap"><table class="comparison-table"><thead id="comparisonHead"></thead><tbody id="comparisonRows"></tbody></table></div>
+          <div class="legend"><span class="status yes">✓</span><span id="legendYes"></span><span class="status no">—</span><span id="legendNo"></span></div>
+        </section>
+        <section class="prototype-note"><strong id="prototypeTitle"></strong><span id="prototypeBody"></span></section>
+      </section>
+
+      <section id="resourceSettingsView" class="page-view" hidden>
+        <section class="page-hero"><div><div id="settingsEyebrow" class="eyebrow"></div><h1 id="settingsTitle"></h1><p id="settingsSubtitle"></p></div><span class="hero-badge">Base Authoring Plane</span></section>
+        <section class="panel settings-shell"><div id="settingsTabs" class="settings-tabs"></div><div id="settingsContent" class="settings-content"></div></section>
+      </section>
+
+      <section id="peopleOverviewView" class="page-view" hidden>
+        <section class="page-hero"><div><div id="peopleEyebrow" class="eyebrow"></div><h1 id="peopleTitle"></h1><p id="peopleSubtitle"></p></div><span class="hero-badge">Synthetic Identity</span></section>
+        <section class="panel directory-panel">
+          <div class="directory-toolbar">
+            <label class="search-field"><span aria-hidden="true">⌕</span><input id="peopleSearch" type="search" autocomplete="off"></label>
+            <select id="peopleDepartmentFilter" class="filter-select" aria-label="Department"><option value=""></option></select>
+            <div class="view-segment" role="group" aria-label="People view mode"><button id="peopleAllMode" class="segment-button active" type="button"></button><button id="peopleGroupMode" class="segment-button" type="button"></button></div>
+            <span id="peopleResultCount" class="directory-count"></span>
+          </div>
+          <div id="peopleAllList">
+            <div class="table-wrap people-table-wrap"><table><thead id="peopleHead"></thead><tbody id="peopleRows"></tbody></table></div>
+            <div id="mobilePeopleList" class="mobile-people-list"></div>
+          </div>
+          <div id="peopleGroupedList" class="people-grouped-list" hidden></div>
+          <div class="pagination-bar"><button id="peoplePrev" class="secondary-button" type="button"></button><span id="peoplePageStatus"></span><button id="peopleNext" class="secondary-button" type="button"></button></div>
+        </section>
+      </section>
+
+      <section id="auditView" class="page-view" hidden>
+        <section class="page-hero"><div><div id="auditEyebrow" class="eyebrow"></div><h1 id="auditTitle"></h1><p id="auditSubtitle"></p></div><span class="hero-badge">Audit Trail</span></section>
+        <section class="panel audit-panel">
+          <div class="audit-boundary" id="auditBoundary"></div>
+          <div class="directory-toolbar">
+            <label class="search-field"><span aria-hidden="true">⌕</span><input id="auditSearch" type="search" autocomplete="off"></label>
+            <select id="auditTypeFilter" class="filter-select" aria-label="Event type"><option value=""></option></select>
+            <span id="auditResultCount" class="directory-count"></span>
+          </div>
+          <div class="table-wrap audit-table-wrap"><table><thead id="auditHead"></thead><tbody id="auditRows"></tbody></table></div>
+          <div id="mobileAuditList" class="mobile-audit-list"></div>
+          <div class="pagination-bar"><button id="auditPrev" class="secondary-button" type="button"></button><span id="auditPageStatus"></span><button id="auditNext" class="secondary-button" type="button"></button></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="aboutDialog" class="about-dialog">
+    <form method="dialog" class="about-dialog-card">
+      <div class="about-dialog-mark">?</div><div id="aboutSubtitle" class="eyebrow"></div><h2 id="aboutTitle"></h2><p id="aboutBody"></p><div id="aboutBoundary" class="about-boundary"></div><button id="aboutClose" class="secondary-button" value="close"></button>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.bundle.js"></script>
+</body>
+</html>
