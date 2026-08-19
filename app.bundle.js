@@ -48,26 +48,43 @@ const PEOPLE_TITLES = Object.freeze([
   'SSC Manager',
   'Portal Administrator'
 ]);
-const PEOPLE_ROLE_KEYS = Object.freeze(['employee', 'finance', 'manager', 'admin']);
+// Explicit module fixtures. `manager` remains the internal compatibility key for HOD.
+// Department, title, and brand are deliberately not consulted when assigning modules.
+const PEOPLE_MODULE_PATTERNS = Object.freeze([
+  ['employee'],
+  ['employee', 'finance'],
+  ['employee', 'manager'],
+  ['employee', 'finance', 'manager'],
+  ['employee', 'admin'],
+  ['employee', 'finance', 'admin'],
+  ['employee', 'manager', 'admin'],
+  ['employee', 'finance']
+]);
 
 const SYNTHETIC_PEOPLE_COUNT = 3200;
 
 function createSyntheticPeople(count = SYNTHETIC_PEOPLE_COUNT) {
   const size = Math.max(0, Math.min(10000, Number(count) || 0));
   return Array.from({ length: size }, (_, index) => {
-    const roleKey = PEOPLE_ROLE_KEYS[index % PEOPLE_ROLE_KEYS.length];
+    const fixtureBand = Math.floor(index / PEOPLE_DEPARTMENTS.length);
+    const moduleKeys = PEOPLE_MODULE_PATTERNS[fixtureBand % PEOPLE_MODULE_PATTERNS.length];
+    const roleKey = moduleKeys.includes('admin') ? 'admin' : moduleKeys.includes('manager') ? 'manager' : moduleKeys.includes('finance') ? 'finance' : 'employee';
     const department = PEOPLE_DEPARTMENTS[index % PEOPLE_DEPARTMENTS.length];
-    const brand = PEOPLE_BRANDS[index % PEOPLE_BRANDS.length];
+    const brandShape = fixtureBand % 4;
+    const brands = brandShape === 0 ? [] : brandShape === 1 ? [PEOPLE_BRANDS[fixtureBand % PEOPLE_BRANDS.length]] : brandShape === 2 ? [PEOPLE_BRANDS[fixtureBand % PEOPLE_BRANDS.length], PEOPLE_BRANDS[(fixtureBand + 1) % PEOPLE_BRANDS.length]] : [PEOPLE_BRANDS[fixtureBand % PEOPLE_BRANDS.length]];
     const title = PEOPLE_TITLES[index % PEOPLE_TITLES.length];
     return Object.freeze({
       principalKey: `synthetic-${String(index + 1).padStart(4, '0')}`,
       roleKey,
+      moduleKeys: Object.freeze([...moduleKeys]),
       principal: Object.freeze({
         displayName: 'Evren',
         larkUserName: 'Evren',
         department,
-        brand,
-        title
+        brand: brands.join(', '),
+        brands: Object.freeze([...brands]),
+        title,
+        status: index % 17 === 0 ? 'inactive' : 'active'
       })
     });
   });
@@ -127,7 +144,9 @@ const ROLE_RESOURCE_GRANTS = Object.freeze([
   ['employee', 'helios'], ['employee', 'sharepoint'], ['employee', 'hylearning'], ['employee', 'ai-chatbot'],
   ['finance', 'helios'], ['finance', 'netsuite'], ['finance', 'sharepoint'], ['finance', 'datawind'], ['finance', 'fdp'], ['finance', 'hylearning'], ['finance', 'ai-chatbot'],
   ['manager', 'helios'], ['manager', 'netsuite'], ['manager', 'sharepoint'], ['manager', 'datawind'], ['manager', 'fdp'], ['manager', 'hylearning'], ['manager', 'ai-chatbot'],
-  ['admin', 'helios'], ['admin', 'netsuite'], ['admin', 'sharepoint'], ['admin', 'datawind'], ['admin', 'fdp'], ['admin', 'people-access'], ['admin', 'hylearning'], ['admin', 'ai-chatbot']
+  // Admin keeps Employee baseline resources plus the Portal control-plane resource;
+  // it is intentionally not a Business Resource Superuser.
+  ['admin', 'helios'], ['admin', 'sharepoint'], ['admin', 'people-access'], ['admin', 'hylearning'], ['admin', 'ai-chatbot']
 ].map(([roleKey, resourceKey]) => Object.freeze({ roleKey, resourceKey, scope: 'portal:launch' })));
 
 
@@ -156,11 +175,21 @@ const DEFAULT_BASE_SETTINGS = Object.freeze({
 
 
 // ---- adapters/portal-adapter.js ----
-const STORAGE_KEYS = Object.freeze({ resources: 'fin-ssc-demo:resource-overrides:v1', grants: 'fin-ssc-demo:grants:v1', base: 'fin-ssc-demo:base-settings:v1' });
+const STORAGE_KEYS = Object.freeze({ resources: 'fin-ssc-demo:resource-overrides:v1', customResources: 'fin-ssc-demo:custom-resources:v1', grants: 'fin-ssc-demo:grants:v1', base: 'fin-ssc-demo:base-settings:v1', principalPermissions: 'fin-ssc-demo:principal-permissions:v1' });
 const validRoles = new Set(ROLES.map(r => r.key));
-const validResources = new Set(RESOURCE_CATALOG.map(r => r.key));
+const MODULE_KEYS = Object.freeze(['employee', 'finance', 'manager', 'admin']);
+const ACTION_KEYS = Object.freeze(['discover', 'launch']);
 let peopleCache = null;
 let auditCache = null;
+
+// Workbench-only synthetic rules. They exercise the UX and are not a production evaluator contract.
+// `manager` is retained as an internal compatibility key and is presented as HOD by i18n.
+const SYNTHETIC_MODULE_ACTIONS = Object.freeze({
+  employee: Object.freeze({ helios: ['discover'], sharepoint: ['discover', 'launch'], hylearning: ['discover', 'launch'], 'ai-chatbot': ['discover', 'launch'] }),
+  finance: Object.freeze({ helios: ['discover', 'launch'], netsuite: ['discover', 'launch'], sharepoint: ['discover', 'launch'], datawind: ['discover'], fdp: ['discover', 'launch'], hylearning: ['discover', 'launch'], 'ai-chatbot': ['discover', 'launch'] }),
+  manager: Object.freeze({ helios: ['discover', 'launch'], netsuite: ['discover'], sharepoint: ['discover', 'launch'], datawind: ['discover', 'launch'], fdp: ['discover'], hylearning: ['discover', 'launch'], 'ai-chatbot': ['discover', 'launch'] }),
+  admin: Object.freeze({ 'people-access': ['discover', 'launch'] })
+});
 
 // UX-only synthetic runtime warning. This object is not a production health schema or adapter contract.
 const SYNTHETIC_RUNTIME_WARNING = Object.freeze({
@@ -181,16 +210,89 @@ function read(key, fallback) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
 }
 function write(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function canManagePeople() { return (runtime().loginRole.capabilities || []).includes('view_people'); }
+function canManageResources() { return (runtime().loginRole.capabilities || []).includes('manage_resources'); }
+function principalRecord(principalKey) { return peopleRecords().find(x => x.principalKey === principalKey) || null; }
+function permissionOverrides() { const value = read(STORAGE_KEYS.principalPermissions, {}); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+function normalizeModules(values) {
+  const requested = new Set(Array.isArray(values) ? values.filter(x => MODULE_KEYS.includes(x)) : []);
+  requested.add('employee');
+  return MODULE_KEYS.filter(x => requested.has(x));
+}
+function normalizeIndividualGrant(value, index = 0) {
+  const actions = ACTION_KEYS.filter(action => Array.isArray(value?.actions) && value.actions.includes(action));
+  const validity = value?.validity === 'time-bound' ? 'time-bound' : 'permanent';
+  return {
+    id: String(value?.id || `individual-${Date.now()}-${index}`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80),
+    resourceKey: String(value?.resourceKey || ''), actions, validity,
+    expiresAt: validity === 'time-bound' ? String(value?.expiresAt || '') : '',
+    reason: String(value?.reason || '').trim().slice(0, 300)
+  };
+}
+function storedPrincipalConfig(record) {
+  const stored = permissionOverrides()[record.principalKey];
+  if (!stored || typeof stored !== 'object') return { modules: normalizeModules(record.moduleKeys), individualGrants: [] };
+  return { modules: normalizeModules(stored.modules), individualGrants: Array.isArray(stored.individualGrants) ? stored.individualGrants.map(normalizeIndividualGrant) : [] };
+}
+function isGrantActive(grant) { return grant.validity !== 'time-bound' || (Number.isFinite(Date.parse(grant.expiresAt)) && Date.parse(grant.expiresAt) > Date.now()); }
+function sourceId(source) { return `${source.type}:${source.key}`; }
+function deriveAuthorization(config) {
+  const actionMap = new Map();
+  const resourceKeys = new Set(catalogRecords().map(resource => resource.key));
+  const add = (resourceKey, action, source) => {
+    if (!resourceKeys.has(resourceKey) || !ACTION_KEYS.includes(action)) return;
+    const key = `${resourceKey}:${action}`;
+    if (!actionMap.has(key)) actionMap.set(key, { resourceKey, action, sources: [] });
+    const item = actionMap.get(key);
+    if (!item.sources.some(x => sourceId(x) === sourceId(source))) item.sources.push(source);
+  };
+  normalizeModules(config.modules).forEach(moduleKey => Object.entries(SYNTHETIC_MODULE_ACTIONS[moduleKey] || {}).forEach(([resourceKey, actions]) => actions.forEach(action => add(resourceKey, action, { type: 'module', key: moduleKey }))));
+  (config.individualGrants || []).map(normalizeIndividualGrant).filter(isGrantActive).forEach(grant => grant.actions.forEach(action => add(grant.resourceKey, action, { type: 'individual', key: grant.id })));
+  const catalog = catalogRecords();
+  return catalog.filter(resource => resource.enabled).map(resource => {
+    const actionEntries = ACTION_KEYS.map(action => actionMap.get(`${resource.key}:${action}`)).filter(Boolean);
+    if (!actionEntries.length) return null;
+    const sources = [];
+    actionEntries.forEach(entry => entry.sources.forEach(source => { if (!sources.some(x => sourceId(x) === sourceId(source))) sources.push(source); }));
+    return Object.freeze({ resourceKey: resource.key, resource, actions: actionEntries.map(x => x.action), sources: Object.freeze(sources), actionSources: Object.freeze(Object.fromEntries(actionEntries.map(x => [x.action, Object.freeze(x.sources)]))) });
+  }).filter(Boolean);
+}
+function authorizationActionMap(rows) {
+  const out = new Map();
+  rows.forEach(row => row.actions.forEach(action => out.set(`${row.resourceKey}:${action}`, { resourceKey: row.resourceKey, action, resource: row.resource, sources: row.actionSources[action] || row.sources })));
+  return out;
+}
+function impactBetween(before, after) {
+  const a = authorizationActionMap(before), b = authorizationActionMap(after);
+  const added = [], removed = [], sourceChanged = [], retained = [];
+  new Set([...a.keys(), ...b.keys()]).forEach(key => {
+    const oldItem = a.get(key), newItem = b.get(key);
+    if (!oldItem) { added.push(newItem); return; }
+    if (!newItem) { removed.push(oldItem); return; }
+    const beforeSources = oldItem.sources.map(sourceId).sort();
+    const afterSources = newItem.sources.map(sourceId).sort();
+    if (JSON.stringify(beforeSources) !== JSON.stringify(afterSources)) sourceChanged.push({ ...newItem, beforeSources: oldItem.sources, afterSources: newItem.sources });
+    else retained.push(newItem);
+  });
+  return Object.freeze({ added: Object.freeze(added), removed: Object.freeze(removed), sourceChanged: Object.freeze(sourceChanged), retained: Object.freeze(retained) });
+}
 function grantRecords() {
   const stored = read(STORAGE_KEYS.grants, null);
   if (!Array.isArray(stored)) return ROLE_RESOURCE_GRANTS.map(g => ({ ...g }));
-  return stored.filter(g => validRoles.has(g?.roleKey) && validResources.has(g?.resourceKey)).map(g => ({ roleKey: g.roleKey, resourceKey: g.resourceKey, scope: 'portal:launch' }));
+  const resourceKeys = new Set(catalogRecords().map(resource => resource.key));
+  return stored.filter(g => validRoles.has(g?.roleKey) && resourceKeys.has(g?.resourceKey)).map(g => ({ roleKey: g.roleKey, resourceKey: g.resourceKey, scope: 'portal:launch' }));
 }
 function catalogRecords() {
   const overrides = read(STORAGE_KEYS.resources, {});
-  return RESOURCE_CATALOG.map(resource => {
+  const custom = read(STORAGE_KEYS.customResources, []);
+  const customRecords = Array.isArray(custom) ? custom.filter(resource => resource && typeof resource.key === 'string').map(resource => ({
+    key: resource.key, name: String(resource.name || resource.key), icon: String(resource.icon || resource.name || resource.key).slice(0, 2).toUpperCase(),
+    categoryKey: '', descriptionKey: '', enabled: resource.enabled !== false,
+    syntheticCustom: true, customName: String(resource.name || resource.key), customCategory: String(resource.category || ''), customDescription: String(resource.description || '')
+  })) : [];
+  return [...RESOURCE_CATALOG, ...customRecords].map(resource => {
     const o = overrides?.[resource.key] || {};
-    return Object.freeze({ ...resource, customName: typeof o.name === 'string' ? o.name : '', customCategory: typeof o.category === 'string' ? o.category : '', customDescription: typeof o.description === 'string' ? o.description : '', enabled: typeof o.enabled === 'boolean' ? o.enabled : resource.enabled !== false });
+    return Object.freeze({ ...resource, customName: typeof o.name === 'string' ? o.name : (resource.customName || ''), customCategory: typeof o.category === 'string' ? o.category : (resource.customCategory || ''), customDescription: typeof o.description === 'string' ? o.description : (resource.customDescription || ''), enabled: typeof o.enabled === 'boolean' ? o.enabled : resource.enabled !== false });
   });
 }
 function runtime() {
@@ -243,16 +345,102 @@ function queryPeople({ search = '', department = '', page = 1, pageSize = 50 } =
   const filtered = all.filter(x => {
     if (department && x.principal.department !== department) return false;
     if (!q) return true;
-    const role = ROLE_BY_KEY[x.roleKey];
-    return [x.principal.larkUserName, x.principal.department, x.principal.brand, x.principal.title, x.roleKey, role?.labelKey].some(v => normalizeSearch(v).includes(q));
-  }).sort((a, b) => a.principal.department.localeCompare(b.principal.department) || a.principal.brand.localeCompare(b.principal.brand) || a.principal.title.localeCompare(b.principal.title) || a.principalKey.localeCompare(b.principalKey));
+    const moduleTerms = x.moduleKeys.flatMap(key => [key, key === 'manager' ? 'hod head of department' : '', ROLE_BY_KEY[key]?.labelKey]);
+    return [x.principal.larkUserName, x.principal.department, ...x.principal.brands, x.principal.title, x.principal.status, ...moduleTerms].some(v => normalizeSearch(v).includes(q));
+  }).sort((a, b) => a.principal.department.localeCompare(b.principal.department) || a.principalKey.localeCompare(b.principalKey));
   const size = clampPageSize(pageSize);
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / size));
   const currentPage = Math.max(1, Math.min(totalPages, Number(page) || 1));
   const start = (currentPage - 1) * size;
-  const items = filtered.slice(start, start + size).map(x => Object.freeze({ principalKey: x.principalKey, role: ROLE_BY_KEY[x.roleKey], principal: x.principal }));
+  const items = filtered.slice(start, start + size).map(x => {
+    const config = storedPrincipalConfig(x);
+    return Object.freeze({ principalKey: x.principalKey, role: ROLE_BY_KEY[x.roleKey], moduleKeys: Object.freeze(config.modules), principal: x.principal });
+  });
   return Object.freeze({ items, total, page: currentPage, pageSize: size, totalPages, departments });
+}
+
+function getPrincipalPermissionWorkbench(principalKey) {
+  if (!canManagePeople()) return null;
+  const record = principalRecord(String(principalKey || ''));
+  if (!record) return null;
+  const config = storedPrincipalConfig(record);
+  const effectiveAuthorization = deriveAuthorization(config);
+  const activeResources = catalogRecords().filter(resource => resource.enabled).map(resource => {
+    const moduleSources = [];
+    config.modules.forEach(moduleKey => { if ((SYNTHETIC_MODULE_ACTIONS[moduleKey]?.[resource.key] || []).length) moduleSources.push(moduleKey); });
+    return Object.freeze({ ...resource, grantedViaModules: Object.freeze(moduleSources) });
+  });
+  return Object.freeze({
+    principalKey: record.principalKey, principal: record.principal,
+    modules: Object.freeze(config.modules), moduleOptions: MODULE_KEYS,
+    individualGrants: Object.freeze(config.individualGrants.map(x => Object.freeze({ ...x }))),
+    activeResources: Object.freeze(activeResources), effectiveAuthorization: Object.freeze(effectiveAuthorization),
+    boundary: 'synthetic-dry-run-only'
+  });
+}
+
+function validateIndividualGrantDraft(principalKey, proposed, draft) {
+  if (!canManagePeople() || !principalRecord(String(principalKey || ''))) return Object.freeze({ ok: false, code: 'forbidden', sourceKeys: [] });
+  const modules = normalizeModules(proposed?.modules);
+  const grant = normalizeIndividualGrant(draft);
+  const resource = catalogRecords().find(x => x.key === grant.resourceKey && x.enabled);
+  if (!resource) return Object.freeze({ ok: false, code: 'resource-required', sourceKeys: [] });
+  if (!grant.actions.length) return Object.freeze({ ok: false, code: 'action-required', sourceKeys: [] });
+  if (!grant.reason) return Object.freeze({ ok: false, code: 'reason-required', sourceKeys: [] });
+  if (grant.validity === 'time-bound' && (!Number.isFinite(Date.parse(grant.expiresAt)) || Date.parse(grant.expiresAt) <= Date.now())) return Object.freeze({ ok: false, code: 'expiry-required', sourceKeys: [] });
+  const redundantActions = grant.actions.filter(action => modules.some(moduleKey => (SYNTHETIC_MODULE_ACTIONS[moduleKey]?.[grant.resourceKey] || []).includes(action)));
+  const moduleSources = modules.filter(moduleKey => (SYNTHETIC_MODULE_ACTIONS[moduleKey]?.[grant.resourceKey] || []).some(action => redundantActions.includes(action)));
+  if (redundantActions.length) return Object.freeze({ ok: false, code: 'redundant-module', redundantActions: Object.freeze(redundantActions), sourceKeys: Object.freeze(moduleSources) });
+  const otherGrants = (proposed?.individualGrants || []).map(normalizeIndividualGrant).filter(x => x.id !== grant.id && x.resourceKey === grant.resourceKey && isGrantActive(x));
+  const coveredByIndividual = grant.actions.every(action => otherGrants.some(x => x.actions.includes(action)));
+  if (coveredByIndividual) return Object.freeze({ ok: false, code: 'redundant-individual', sourceKeys: Object.freeze(otherGrants.map(x => x.id)) });
+  return Object.freeze({ ok: true, code: 'ok', sourceKeys: Object.freeze([]), grant: Object.freeze(grant) });
+}
+
+function previewPrincipalPermissionChanges(principalKey, proposed) {
+  if (!canManagePeople()) return null;
+  const record = principalRecord(String(principalKey || ''));
+  if (!record) return null;
+  const beforeConfig = storedPrincipalConfig(record);
+  const afterConfig = { modules: normalizeModules(proposed?.modules), individualGrants: Array.isArray(proposed?.individualGrants) ? proposed.individualGrants.map(normalizeIndividualGrant) : [] };
+  const before = deriveAuthorization(beforeConfig), after = deriveAuthorization(afterConfig);
+  return Object.freeze({ before: Object.freeze(before), after: Object.freeze(after), impact: impactBetween(before, after) });
+}
+
+function getPrincipalResourceAccessMatrix(principalKey, proposed) {
+  if (!canManagePeople()) return null;
+  const record = principalRecord(String(principalKey || ''));
+  if (!record) return null;
+  const stored = storedPrincipalConfig(record);
+  const config = proposed ? { modules: normalizeModules(proposed.modules), individualGrants: Array.isArray(proposed.individualGrants) ? proposed.individualGrants.map(normalizeIndividualGrant) : [] } : stored;
+  const grants = config.individualGrants.filter(isGrantActive);
+  return Object.freeze(catalogRecords().filter(resource => resource.enabled).map(resource => {
+    const matchingGrants = grants.filter(item => item.resourceKey === resource.key);
+    const grant = matchingGrants.length ? { ...matchingGrants[0], actions: ACTION_KEYS.filter(action => matchingGrants.some(item => item.actions.includes(action))) } : null;
+    const actions = Object.fromEntries(ACTION_KEYS.map(action => {
+      const moduleSources = config.modules.filter(moduleKey => (SYNTHETIC_MODULE_ACTIONS[moduleKey]?.[resource.key] || []).includes(action));
+      const individual = Boolean(grant?.actions.includes(action));
+      return [action, Object.freeze({ checked: moduleSources.length > 0 || individual, locked: moduleSources.length > 0, individual, redundant: moduleSources.length > 0 && individual, moduleSources: Object.freeze(moduleSources) })];
+    }));
+    return Object.freeze({ resource, actions: Object.freeze(actions), individualGrant: grant ? Object.freeze({ ...grant }) : null, granted: ACTION_KEYS.some(action => actions[action].checked) });
+  }));
+}
+
+function savePrincipalPermissionChanges(principalKey, proposed) {
+  if (!canManagePeople()) return Object.freeze({ ok: false, code: 'forbidden' });
+  const record = principalRecord(String(principalKey || ''));
+  if (!record) return Object.freeze({ ok: false, code: 'not-found' });
+  const modules = normalizeModules(proposed?.modules);
+  const individualGrants = Array.isArray(proposed?.individualGrants) ? proposed.individualGrants.map(normalizeIndividualGrant) : [];
+  for (const grant of individualGrants) {
+    const validation = validateIndividualGrantDraft(record.principalKey, { modules, individualGrants }, grant);
+    if (!validation.ok) return Object.freeze({ ok: false, code: validation.code, validation });
+  }
+  const all = permissionOverrides();
+  all[record.principalKey] = { modules, individualGrants };
+  write(STORAGE_KEYS.principalPermissions, all);
+  return Object.freeze({ ok: true, workbench: getPrincipalPermissionWorkbench(record.principalKey) });
 }
 
 function queryAudit({ search = '', eventType = '', page = 1, pageSize = 50 } = {}) {
@@ -276,12 +464,29 @@ function queryAudit({ search = '', eventType = '', page = 1, pageSize = 50 } = {
 
 function saveResourceSettings(rows) {
   const out = {};
-  rows.forEach(row => { if (validResources.has(row?.key)) out[row.key] = { name: String(row.name || '').trim(), category: String(row.category || '').trim(), description: String(row.description || '').trim(), enabled: Boolean(row.enabled) }; });
+  const resourceKeys = new Set(catalogRecords().map(resource => resource.key));
+  rows.forEach(row => { if (resourceKeys.has(row?.key)) out[row.key] = { name: String(row.name || '').trim(), category: String(row.category || '').trim(), description: String(row.description || '').trim(), enabled: Boolean(row.enabled) }; });
   write(STORAGE_KEYS.resources, out);
+}
+function createSyntheticResource(input) {
+  if (!canManageResources()) return Object.freeze({ ok: false, code: 'forbidden' });
+  const key = String(input?.key || '').trim().toLowerCase();
+  const name = String(input?.name || '').trim().slice(0, 120);
+  const category = String(input?.category || '').trim().slice(0, 120);
+  const description = String(input?.description || '').trim().slice(0, 500);
+  if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(key)) return Object.freeze({ ok: false, code: 'invalid-key' });
+  if (!name) return Object.freeze({ ok: false, code: 'name-required' });
+  if (catalogRecords().some(resource => resource.key === key)) return Object.freeze({ ok: false, code: 'duplicate-key' });
+  const stored = read(STORAGE_KEYS.customResources, []);
+  const rows = Array.isArray(stored) ? stored : [];
+  const resource = { key, name, category, description, enabled: input?.enabled !== false, icon: name.slice(0, 2).toUpperCase() };
+  write(STORAGE_KEYS.customResources, [...rows, resource]);
+  return Object.freeze({ ok: true, resource: Object.freeze({ ...resource }), grantsCreated: 0 });
 }
 function saveRoleGrants(rows) {
   const seen = new Set(); const out = [];
-  rows.forEach(row => { if (!validRoles.has(row?.roleKey) || !validResources.has(row?.resourceKey)) return; const k = `${row.roleKey}:${row.resourceKey}`; if (seen.has(k)) return; seen.add(k); out.push({ roleKey: row.roleKey, resourceKey: row.resourceKey, scope: 'portal:launch' }); });
+  const resourceKeys = new Set(catalogRecords().map(resource => resource.key));
+  rows.forEach(row => { if (!validRoles.has(row?.roleKey) || !resourceKeys.has(row?.resourceKey)) return; const k = `${row.roleKey}:${row.resourceKey}`; if (seen.has(k)) return; seen.add(k); out.push({ roleKey: row.roleKey, resourceKey: row.resourceKey, scope: 'portal:launch' }); });
   write(STORAGE_KEYS.grants, out);
 }
 function saveBaseSettings(settings) {
@@ -298,7 +503,7 @@ const ZH_TW = {
   'sidebar.synthetic':'僅限 synthetic data','sidebar.collapse':'收合側欄','sidebar.expand':'展開側欄','sidebar.open':'開啟選單','sidebar.close':'關閉選單',
   'about.button':'關於系統','about.title':'About System','about.subtitle':'Finance SSC Portal Prototype','about.body':'此網站為 FIN-SSC IAM Portal 的互動式前端原型，用於驗證角色導覽、資源目錄、管理設定與響應式 H5 體驗。','about.boundary':'Prototype 不包含真實 Lark、Base、Production URL 或憑證。正式授權必須由 Flask server-side 執行。','common.close':'關閉',
   'identity.aria':'登入身分','identity.larkName':'Lark User Name','identity.department':'所屬部門','identity.brand':'所屬品牌','identity.title':'職稱',
-  'role.employee':'普通員工','role.finance':'財務員工','role.manager':'主管','role.admin':'管理員','role.previewEyebrow':'Administrator preview','role.previewHelper':'此切換器僅供管理員預覽角色資源視圖；登入身分仍為管理員。','role.previewAria':'角色預覽切換',
+  'role.employee':'Employee','role.finance':'Finance','role.manager':'HOD','role.admin':'Admin','role.previewEyebrow':'Administrator preview','role.previewHelper':'此切換器僅供管理員預覽角色資源視圖；登入身分仍為管理員。','role.previewAria':'角色預覽切換',
   'home.eyebrow':'SSC portal','home.welcome':'歡迎回來，{name}','home.welcomeText':'以下為你目前有效存取範圍內的系統資源。','home.previewText':'目前以管理員身分預覽「{role}」的有效資源視圖。',
   'metric.systems':'可用系統','metric.systemsDetail':'Effective grants','metric.identity':'登入身分','metric.identityDetail':'Synthetic profile','metric.mode':'資料模式','metric.modeValue':'Prototype','metric.modeDetail':'Client-side UI only','metric.authorization':'授權狀態','metric.authorizationValue':'已篩選','metric.authorizationDetail':'Resource catalog',
   'catalog.eyebrow':'Authorized catalog','catalog.title':'系統資源目錄','catalog.subtitle':'已依「{role}」的有效授權篩選。','catalog.count':'{count} 項資源','catalog.system':'資源系統','catalog.category':'分類','catalog.description':'說明','catalog.access':'有效存取','catalog.action':'操作','catalog.launch':'開啟資源','catalog.launchDemo':'{resource}：此原型不會連至任何真實系統。',
@@ -310,7 +515,8 @@ const ZH_TW = {
   'settings.base.title':'Base 基本設定','settings.base.subtitle':'僅保存 synthetic alias 與 table name；不得在 Prototype 放入 token、credential 或真實 Base ID。','settings.base.alias':'Base App Alias','settings.base.resourceTable':'Resource Table','settings.base.roleTable':'Role Table','settings.base.assignmentTable':'Assignment Table','settings.base.cacheTtl':'Cache TTL（秒）',
   'settings.future.title':'預留擴充空間','settings.future.subtitle':'這些欄位目前不啟用，用來保留後續 IAM 治理與 Base schema 的演進位置。','settings.future.scope':'Resource Scope','settings.future.org':'Brand / Department Scope','settings.future.owner':'Owner / Validity','settings.future.approval':'Maker-Checker / Approval','settings.future.scopeText':'可再細分 launch、view、admin 等 action/scope。','settings.future.orgText':'支援品牌與部門層級的資源範圍。','settings.future.ownerText':'加入資源 Owner、生效／失效時間與 retirement metadata。','settings.future.approvalText':'管理員修改可接審批、覆核與 Audit Trail。',
   'settings.save':'儲存 Prototype 設定','settings.saved':'設定已儲存至此瀏覽器的 localStorage。','settings.reset':'重設 Demo','settings.resetConfirm':'確定要清除本機 Prototype 設定並恢復預設值嗎？','settings.resetDone':'Prototype 設定已恢復預設值。',
-  'people.eyebrow':'Admin only','people.title':'人員總覽','people.subtitle':'Synthetic identity 清單，用於驗證未來 Principal / Role / Organization 的管理視圖；介面採查詢、篩選與分頁，不一次渲染全部成員。','people.name':'Lark User Name','people.department':'所屬部門','people.brand':'所屬品牌','people.titleCol':'職稱','people.role':'角色','people.searchPlaceholder':'搜尋姓名、部門、品牌、職稱或角色…','people.allDepartments':'所有部門','people.allMembers':'全部成員','people.groupByDepartment':'依部門分組','people.results':'共 {count} 位成員','people.page':'第 {page} / {totalPages} 頁','people.prev':'上一頁','people.next':'下一頁','people.groupCount':'本頁 {count} 位','people.unknownDepartment':'未設定部門',
+  'people.eyebrow':'Admin only','people.title':'人員總覽','people.subtitle':'Synthetic identity 清單；點選任一人員可進入使用者權限管理工作台。介面採查詢、篩選與分頁，不一次渲染全部成員。','people.name':'Name','people.department':'所屬部門','people.brand':'品牌','people.titleCol':'職稱','people.role':'角色','people.modules':'權限模組','people.noBrands':'未設定品牌','people.status.active':'啟用','people.status.inactive':'停用','people.searchPlaceholder':'搜尋姓名、部門、品牌、職稱、狀態或權限模組…','people.allDepartments':'所有部門','people.allMembers':'全部成員','people.groupByDepartment':'依部門分組','people.results':'共 {count} 位成員','people.page':'第 {page} / {totalPages} 頁','people.prev':'上一頁','people.next':'下一頁','people.groupCount':'本頁 {count} 位','people.unknownDepartment':'未設定部門',
+  'workbench.eyebrow':'Admin only · Principal detail','workbench.title':'使用者權限管理工作台','workbench.subtitle':'編輯來源設定、預覽有效權限與儲存前影響；所有結果均為 synthetic UX dry-run。','workbench.back':'返回人員總覽','workbench.identityTitle':'身分資訊','workbench.identityHelp':'Profile 顯示資料，不是授權規則。','workbench.brandMetadata':'僅為顯示 metadata，不參與授權計算。','workbench.modulesTitle':'權限模組','workbench.modulesHelp':'Employee 為 baseline；Finance、HOD、Admin 均為指定人員的 explicit assignment。','workbench.employeeHelp':'Baseline module，固定保留。','workbench.explicitHelp':'Explicit assignment，不由部門、職稱或品牌推導。','workbench.adminHelp':'Portal Control Plane privilege；不等於 Business Resource Superuser。','workbench.individualTitle':'個別授權','workbench.individualHelp':'從所有啟用資源新增 additive ALLOW exception；不支援 DENY 或 Scope。','workbench.resource':'資源','workbench.actions':'Actions','workbench.discover':'Discover','workbench.launch':'Launch','workbench.validity':'有效期間','workbench.permanent':'永久','workbench.timeBound':'限時','workbench.timeBoundUntil':'有效至 {date}','workbench.expires':'到期日','workbench.reason':'原因','workbench.reasonPlaceholder':'輸入此特殊授權的理由','workbench.selectResource':'選擇所有 Active Resources…','workbench.addGrant':'加入異動草稿','workbench.remove':'移除','workbench.noIndividual':'目前沒有個別授權。','workbench.alreadyVia':'已由 {sources} 提供','workbench.createResource':'建立新資源','workbench.createResourcePlaceholder':'建立新資源目前為 UX 入口；請至資源設定建立 global resource。','workbench.createResourceBoundary':'Resource 是 global entity，預設 No Grants；建立 Resource 與建立 Individual Grant 是兩個不同 mutation。','workbench.effectiveTitle':'有效權限預覽','workbench.effectiveHelp':'由目前草稿中的模組與個別授權衍生；唯讀且不可直接取消。','workbench.effectiveActions':'有效 Actions','workbench.effectiveSource':'Granted Via / Source','workbench.readOnly':'唯讀 Derived View','workbench.noEffective':'目前沒有有效授權。','workbench.sourceModule':'{name} Module','workbench.sourceIndividual':'Individual Grant','workbench.impactTitle':'授權異動影響預覽','workbench.impactHelp':'與最後儲存設定比較的 synthetic dry-run。','workbench.impactAdded':'ADDED · Will Gain','workbench.impactRemoved':'REMOVED · Will Lose','workbench.impactSourceChanged':'SOURCE_CHANGED · Will Retain','workbench.before':'Before','workbench.after':'After','workbench.none':'無','workbench.noChanges':'目前沒有待儲存的授權異動。','workbench.boundary':'Source Configuration 可編輯；Effective Authorization 為 derived / read-only。','workbench.cancel':'取消並返回','workbench.save':'儲存權限異動','workbench.saved':'使用者權限已儲存至此瀏覽器的 synthetic localStorage。','workbench.error.forbidden':'只有管理員可以操作此工作台。','workbench.error.not-found':'找不到此 synthetic principal。','workbench.error.resource-required':'請選擇一個 Active Resource。','workbench.error.action-required':'請至少選擇 Discover 或 Launch。','workbench.error.reason-required':'請填寫授權原因。','workbench.error.expiry-required':'限時授權必須設定未來的到期日。','workbench.error.redundant-module':'完全重複：已由 {sources} 提供，無法儲存。','workbench.error.redundant-individual':'相同 Action 已由另一筆個別授權提供。',
   'runtime.label':'Runtime 警示','runtime.eyebrow':'Admin only · Synthetic UX','runtime.title':'Runtime 狀態','runtime.authorizationStatus':'Authorization Status','runtime.authorizationStatus.degraded':'Degraded','runtime.cacheState':'Cache State','runtime.cacheState.last-known-good':'Last-known-good','runtime.cacheAge':'Cache Age','runtime.maxStale':'Max Stale','runtime.lastReconciliation':'Last Reconciliation','runtime.minutes':'{count} min','runtime.minutesAgo':'{count} min ago','runtime.boundary':'僅供 Synthetic UX 展示；未連線任何正式 health source，亦未建立 Redis／Base／PostgreSQL health schema。','permission.refresh.title':'權限資料已有更新','permission.refresh.body':'你的有效存取範圍可能已變更；可重新整理 Synthetic 授權視圖以取得最新展示狀態。','permission.refresh.action':'更新權限','permission.reauth.title':'需要重新登入','permission.reauth.body':'目前 Session 被標記為需要重新驗證；請重新登入以取得最新的 Synthetic 權限狀態。','permission.reauth.action':'重新登入','permission.boundary':'Synthetic UX only；此提示不代表正式 Session／Authorization freshness contract。',
   'audit.eyebrow':'Admin only','audit.title':'Audit','audit.subtitle':'集中檢視登入、資源點擊、管理操作與人員生命週期事件的稽核入口。','audit.boundary':'Prototype 目前只顯示 synthetic event。正式版 Audit 必須由 Flask／後端連線與 JML 流程以不可由瀏覽器竄改的方式寫入持久化 Audit Store。','audit.searchPlaceholder':'搜尋使用者、事件、目標或來源…','audit.allTypes':'所有事件類型','audit.results':'共 {count} 筆事件','audit.page':'第 {page} / {totalPages} 頁','audit.prev':'上一頁','audit.next':'下一頁','audit.time':'時間','audit.actor':'使用者','audit.event':'事件','audit.target':'目標','audit.source':'來源','audit.result':'結果','audit.result.success':'成功','audit.result.denied':'拒絕',
   'resource.helios.category':'差旅','resource.helios.description':'報銷／差旅平台。','resource.netsuite.category':'ERP／財務','resource.netsuite.description':'Synthetic finance ERP 工作區。','resource.sharepoint.category':'文件協作','resource.sharepoint.description':'Synthetic SSC 文件與知識庫。','resource.datawind.category':'BI 分析','resource.datawind.description':'Synthetic 財務及營運分析儀表板。','resource.fdp.category':'財務資料','resource.fdp.description':'Synthetic 財務資料與報表服務。','resource.peopleAccess.category':'IAM 管理','resource.peopleAccess.description':'Synthetic 人員與權限管理工作區。','resource.hylearning.category':'學習發展','resource.hylearning.description':'Synthetic 學習資源與課程入口。','resource.aiChatbot.category':'AI 助理','resource.aiChatbot.description':'Synthetic SSC 知識問答體驗。'
@@ -321,6 +527,28 @@ const ZH_CN = {...ZH_TW,
 const EN = {...ZH_TW,
   'app.title':'Finance SSC Portal | RBAC Prototype','nav.main':'Navigation','nav.home':'Home','nav.resourceSettings':'Resource Settings','nav.peopleOverview':'People Overview','nav.audit':'Audit','sidebar.synthetic':'Synthetic data only','sidebar.collapse':'Collapse sidebar','sidebar.expand':'Expand sidebar','sidebar.open':'Open menu','sidebar.close':'Close menu','about.button':'About system','about.body':'This is an interactive FIN-SSC IAM Portal frontend prototype for validating role navigation, resource catalog, administration settings, and responsive H5 behavior.','about.boundary':'The prototype contains no real Lark data, Base identifiers, production URLs, or credentials. Production authorization must be enforced server-side by Flask.','common.close':'Close','identity.aria':'Signed-in identity','identity.department':'Department','identity.brand':'Brand','identity.title':'Job Title','role.employee':'Employee','role.finance':'Finance','role.manager':'Manager','role.admin':'Administrator','role.previewHelper':'This switcher lets administrators preview role-specific resources while the signed-in identity remains Administrator.','role.previewAria':'Role preview switcher','home.welcome':'Welcome back, {name}','home.welcomeText':'Below are the resources available within your current effective access.','home.previewText':'Administrator preview of the effective “{role}” resource view.','metric.systems':'Available systems','metric.identity':'Signed-in role','metric.mode':'Data mode','metric.authorization':'Authorization','metric.authorizationValue':'Filtered','catalog.title':'System Resource Catalog','catalog.subtitle':'Filtered by the effective “{role}” grants.','catalog.count':'{count} resources','catalog.system':'Resource','catalog.category':'Category','catalog.description':'Description','catalog.access':'Effective access','catalog.action':'Action','catalog.launch':'Open resource','catalog.launchDemo':'{resource}: this prototype never opens a real system.','comparison.title':'Role / Resource Matrix','comparison.subtitle':'Visible only to administrators for reviewing the prototype effective access model.','comparison.adminOnly':'Admin only','comparison.resource':'Resource','comparison.yes':'Granted','comparison.no':'Not granted','prototype.body':'JavaScript only demonstrates UI behavior. Production must enforce authorization server-side in Flask using Portal Session → Principal → Effective Grants → Resource / Scope.','settings.title':'Resource Settings','settings.subtitle':'An extension of the Table template and a frontend prototype for the future Base Authoring Plane.','settings.tab.resources':'Resource Catalog','settings.tab.permissions':'Role Permissions','settings.tab.base':'Base Settings','settings.tab.future':'Future Extension','settings.resources.title':'Resource Catalog Settings','settings.resources.subtitle':'Manage the basic display metadata and enabled state of Portal resources.','settings.resource.name':'Display Name','settings.resource.category':'Category','settings.resource.description':'Description','settings.resource.enabled':'Enabled','settings.permissions.title':'Role-visible System Permissions','settings.permissions.subtitle':'Configure the Role × Resource visibility / launch matrix. Prototype changes are stored in the browser only.','settings.permissions.resource':'Resource','settings.permissions.addRole':'+ Add Role (reserved)','settings.permissions.addRoleHint':'Future extensions may add Scope, Brand, Department, or custom roles.','settings.base.title':'Base Settings','settings.base.subtitle':'Store synthetic aliases and table names only. Do not place tokens, credentials, or real Base IDs in this prototype.','settings.base.cacheTtl':'Cache TTL (seconds)','settings.future.title':'Reserved Extension Space','settings.future.subtitle':'These options are intentionally inactive and reserve room for future IAM governance and Base schema evolution.','settings.future.scopeText':'Potentially separate launch, view, and admin actions/scopes.','settings.future.orgText':'Support brand- and department-scoped resources.','settings.future.ownerText':'Add resource owner, validity windows, and retirement metadata.','settings.future.approvalText':'Administrator changes may later require approval, review, and audit trails.','settings.save':'Save Prototype Settings','settings.saved':'Settings were saved to this browser localStorage.','settings.reset':'Reset Demo','settings.resetConfirm':'Clear local prototype settings and restore defaults?','settings.resetDone':'Prototype settings restored to defaults.','people.title':'People Overview','people.subtitle':'Synthetic identities for the future Principal / Role / Organization view. Search, filters, and pagination keep DOM rendering bounded for large directories.','people.department':'Department','people.brand':'Brand','people.titleCol':'Job Title','people.role':'Role','people.searchPlaceholder':'Search name, department, brand, title, or role…','people.allDepartments':'All departments','people.allMembers':'All members','people.groupByDepartment':'Group by department','people.results':'{count} members','people.page':'Page {page} of {totalPages}','people.prev':'Previous','people.next':'Next','people.groupCount':'{count} on this page','people.unknownDepartment':'No department','audit.title':'Audit','audit.subtitle':'A centralized view for sign-ins, resource launches, administrative changes, and identity lifecycle events.','audit.boundary':'The prototype shows synthetic events only. Production Audit must be written server-side by Flask, connected services, and JML workflows into a durable store that browser clients cannot tamper with.','audit.searchPlaceholder':'Search actor, event, target, or source…','audit.allTypes':'All event types','audit.results':'{count} events','audit.page':'Page {page} of {totalPages}','audit.prev':'Previous','audit.next':'Next','audit.time':'Time','audit.actor':'Actor','audit.event':'Event','audit.target':'Target','audit.source':'Source','audit.result':'Result','audit.result.success':'Success','audit.result.denied':'Denied','runtime.label':'Runtime Warning','runtime.eyebrow':'Admin only · Synthetic UX','runtime.title':'Runtime status','runtime.boundary':'Synthetic UX only. No live health source is connected, and no Redis/Base/PostgreSQL health schema is defined.','permission.refresh.title':'Permission data has changed','permission.refresh.body':'Your effective access may have changed. Refresh the synthetic authorization view to display the latest state.','permission.refresh.action':'Refresh access','permission.reauth.title':'Sign-in required','permission.reauth.body':'This session is marked as requiring re-authentication. Sign in again to display the latest synthetic access state.','permission.reauth.action':'Sign in again','permission.boundary':'Synthetic UX only. This notice does not define a production session or authorization freshness contract.','resource.helios.category':'Travel','resource.helios.description':'Expense reimbursement / travel platform.','resource.netsuite.category':'ERP / Finance','resource.netsuite.description':'Synthetic finance ERP workspace.','resource.sharepoint.category':'Collaboration','resource.sharepoint.description':'Synthetic SSC document and knowledge workspace.','resource.datawind.category':'BI Analytics','resource.datawind.description':'Synthetic finance and operations analytics dashboards.','resource.fdp.category':'Finance Data','resource.fdp.description':'Synthetic finance data and reporting services.','resource.peopleAccess.category':'IAM Administration','resource.peopleAccess.description':'Synthetic people and access administration workspace.','resource.hylearning.category':'Learning','resource.hylearning.description':'Synthetic learning resources and course portal.','resource.aiChatbot.category':'AI Assistant','resource.aiChatbot.description':'Synthetic SSC knowledge Q&A experience.'
 };
+Object.assign(ZH_CN, {
+  'role.employee':'Employee','role.finance':'Finance','role.manager':'HOD','role.admin':'Admin',
+  'people.subtitle':'Synthetic identity 列表；点击任一人员可进入用户权限管理工作台。界面采用查询、筛选与分页，不一次渲染全部成员。','people.name':'Name','people.brand':'品牌','people.modules':'权限模块','people.noBrands':'未设置品牌','people.status.active':'启用','people.status.inactive':'停用','people.searchPlaceholder':'搜索姓名、部门、品牌、职称、状态或权限模块…',
+  'workbench.eyebrow':'Admin only · Principal detail','workbench.title':'用户权限管理工作台','workbench.subtitle':'编辑来源设置、预览有效权限与保存前影响；所有结果均为 synthetic UX dry-run。','workbench.back':'返回人员总览','workbench.identityTitle':'身份信息','workbench.identityHelp':'Profile 显示数据，不是授权规则。','workbench.brandMetadata':'仅为显示 metadata，不参与授权计算。','workbench.modulesTitle':'权限模块','workbench.modulesHelp':'Employee 是 baseline；Finance、HOD、Admin 均为指定人员的 explicit assignment。','workbench.employeeHelp':'Baseline module，固定保留。','workbench.explicitHelp':'Explicit assignment，不由部门、职称或品牌推导。','workbench.adminHelp':'Portal Control Plane privilege；不等于 Business Resource Superuser。','workbench.individualTitle':'个别授权','workbench.individualHelp':'从所有启用资源新增 additive ALLOW exception；不支持 DENY 或 Scope。','workbench.resource':'资源','workbench.actions':'Actions','workbench.discover':'Discover','workbench.launch':'Launch','workbench.validity':'有效期','workbench.permanent':'永久','workbench.timeBound':'限时','workbench.timeBoundUntil':'有效至 {date}','workbench.expires':'到期日','workbench.reason':'原因','workbench.reasonPlaceholder':'输入此特殊授权的原因','workbench.selectResource':'选择所有 Active Resources…','workbench.addGrant':'加入变更草稿','workbench.remove':'移除','workbench.noIndividual':'目前没有个别授权。','workbench.alreadyVia':'已由 {sources} 提供','workbench.createResource':'创建新资源','workbench.createResourcePlaceholder':'创建新资源目前为 UX 入口；请前往资源设置创建 global resource。','workbench.createResourceBoundary':'Resource 是 global entity，默认 No Grants；创建 Resource 与创建 Individual Grant 是两个不同 mutation。','workbench.effectiveTitle':'有效权限预览','workbench.effectiveHelp':'由当前草稿中的模块与个别授权衍生；只读且不可直接取消。','workbench.effectiveActions':'有效 Actions','workbench.effectiveSource':'Granted Via / Source','workbench.readOnly':'只读 Derived View','workbench.noEffective':'目前没有有效授权。','workbench.sourceModule':'{name} Module','workbench.sourceIndividual':'Individual Grant','workbench.impactTitle':'授权变更影响预览','workbench.impactHelp':'与最后保存设置比较的 synthetic dry-run。','workbench.impactAdded':'ADDED · Will Gain','workbench.impactRemoved':'REMOVED · Will Lose','workbench.impactSourceChanged':'SOURCE_CHANGED · Will Retain','workbench.before':'Before','workbench.after':'After','workbench.none':'无','workbench.noChanges':'目前没有待保存的授权变更。','workbench.boundary':'Source Configuration 可编辑；Effective Authorization 为 derived / read-only。','workbench.cancel':'取消并返回','workbench.save':'保存权限变更','workbench.saved':'用户权限已保存到此浏览器的 synthetic localStorage。','workbench.error.forbidden':'只有管理员可以操作此工作台。','workbench.error.not-found':'找不到此 synthetic principal。','workbench.error.resource-required':'请选择一个 Active Resource。','workbench.error.action-required':'请至少选择 Discover 或 Launch。','workbench.error.reason-required':'请填写授权原因。','workbench.error.expiry-required':'限时授权必须设置未来的到期日。','workbench.error.redundant-module':'完全重复：已由 {sources} 提供，无法保存。','workbench.error.redundant-individual':'相同 Action 已由另一笔个别授权提供。'
+});
+Object.assign(EN, {
+  'role.employee':'Employee','role.finance':'Finance','role.manager':'HOD','role.admin':'Admin',
+  'people.subtitle':'Synthetic identities. Select any person to open the Principal Permission Workbench; query and pagination keep rendering bounded.','people.name':'Name','people.brand':'Brand(s)','people.modules':'Permission Modules','people.noBrands':'No brands','people.status.active':'Active','people.status.inactive':'Inactive','people.searchPlaceholder':'Search name, department, brands, title, status, or module…',
+  'workbench.eyebrow':'Admin only · Principal detail','workbench.title':'Principal Permission Workbench','workbench.subtitle':'Edit source configuration, preview effective authorization, and inspect impact before saving. All results are synthetic UX dry-runs.','workbench.back':'Back to People Overview','workbench.identityTitle':'Identity / Profile','workbench.identityHelp':'Profile display data, not authorization rules.','workbench.brandMetadata':'Display metadata only; brands do not affect authorization.','workbench.modulesTitle':'Permission Modules','workbench.modulesHelp':'Employee is baseline. Finance, HOD, and Admin are explicit assignments to this principal.','workbench.employeeHelp':'Baseline module; always retained.','workbench.explicitHelp':'Explicit assignment; never inferred from department, title, or brands.','workbench.adminHelp':'Portal Control Plane privilege; not a Business Resource Superuser.','workbench.individualTitle':'Individual Grants','workbench.individualHelp':'Add additive ALLOW exceptions from all active resources. DENY and scopes are not supported.','workbench.resource':'Resource','workbench.actions':'Actions','workbench.discover':'Discover','workbench.launch':'Launch','workbench.validity':'Validity','workbench.permanent':'Permanent','workbench.timeBound':'Time-bound','workbench.timeBoundUntil':'Valid until {date}','workbench.expires':'Expires','workbench.reason':'Reason','workbench.reasonPlaceholder':'Explain why this exception is needed','workbench.selectResource':'Select from all active resources…','workbench.addGrant':'Add to change draft','workbench.remove':'Remove','workbench.noIndividual':'No individual grants.','workbench.alreadyVia':'Already granted via {sources}','workbench.createResource':'Create New Resource','workbench.createResourcePlaceholder':'Create New Resource is a UX entry for now. Create the global resource in Resource Settings.','workbench.createResourceBoundary':'A Resource is global and defaults to No Grants. Creating a Resource and an Individual Grant are separate mutations.','workbench.effectiveTitle':'Effective Authorization Preview','workbench.effectiveHelp':'Derived from the draft modules and individual grants. This view is read-only and cannot create hidden DENY semantics.','workbench.effectiveActions':'Effective Actions','workbench.effectiveSource':'Granted Via / Source','workbench.readOnly':'Read-only Derived View','workbench.noEffective':'No effective authorization.','workbench.sourceModule':'{name} Module','workbench.sourceIndividual':'Individual Grant','workbench.impactTitle':'Authorization Change Impact Preview','workbench.impactHelp':'Synthetic dry-run compared with the last saved source configuration.','workbench.impactAdded':'ADDED · Will Gain','workbench.impactRemoved':'REMOVED · Will Lose','workbench.impactSourceChanged':'SOURCE_CHANGED · Will Retain','workbench.before':'Before','workbench.after':'After','workbench.none':'None','workbench.noChanges':'No unsaved authorization changes.','workbench.boundary':'Source Configuration is editable; Effective Authorization is derived and read-only.','workbench.cancel':'Cancel and Back','workbench.save':'Save Permission Changes','workbench.saved':'Principal permissions were saved to synthetic browser localStorage.','workbench.error.forbidden':'Only administrators can use this workbench.','workbench.error.not-found':'Synthetic principal not found.','workbench.error.resource-required':'Select an active resource.','workbench.error.action-required':'Select Discover or Launch.','workbench.error.reason-required':'Enter a reason for this grant.','workbench.error.expiry-required':'A time-bound grant needs a future expiry date.','workbench.error.redundant-module':'Fully redundant: already granted via {sources}; this cannot be saved.','workbench.error.redundant-individual':'The same action is already provided by another individual grant.'
+});
+Object.assign(ZH_TW, {
+  'workbench.matrixTitle':'資源存取矩陣','workbench.matrixHelp':'顯示所有 Active Resources。模組提供的 Action 固定鎖定；可編輯勾選只建立或移除 Individual ALLOW。','workbench.searchResource':'搜尋資源名稱、Key 或分類…','workbench.allCategories':'所有分類','workbench.allResources':'所有資源','workbench.granted':'已授權','workbench.notGranted':'未授權','workbench.matrixEmpty':'沒有符合篩選條件的資源。','workbench.lockedHelp':'此 Action 由 {sources} Module 提供；請調整 Permission Module 才能移除。','workbench.editableAllowHelp':'勾選會建立 Individual ALLOW；未勾選不代表 DENY。','workbench.removeRedundant':'移除重複個別授權','workbench.redundantTitle':'個別授權已與 Module 重複','workbench.redundantBody':'{actions} 已由 Module 提供。系統不會自動刪除，請明確移除後再儲存。','workbench.noDenyBoundary':'未勾選只表示沒有 Individual ALLOW，不代表 explicit DENY。Module 提供的 Action 只能從 Permission Modules 調整。',
+  'settings.create.button':'新增資源','settings.create.title':'新增 Synthetic Global Resource','settings.create.subtitle':'建立可供所有 Principal Workbench 使用的全域 Prototype Resource。','settings.create.save':'建立資源','settings.create.return':'返回 Evren 權限工作台','settings.create.boundary':'新 Resource 預設 No Grants。建立 Resource 不會同時建立 Individual Grant。','settings.create.error.forbidden':'只有管理員可以建立資源。','settings.create.error.invalid-key':'Resource Key 必須為 2–64 位小寫英數與連字號。','settings.create.error.name-required':'請輸入 Display Name。','settings.create.error.duplicate-key':'此 Resource Key 已存在。'
+});
+Object.assign(ZH_CN, {
+  'workbench.matrixTitle':'资源访问矩阵','workbench.matrixHelp':'显示所有 Active Resources。模块提供的 Action 固定锁定；可编辑勾选只创建或移除 Individual ALLOW。','workbench.searchResource':'搜索资源名称、Key 或分类…','workbench.allCategories':'所有分类','workbench.allResources':'所有资源','workbench.granted':'已授权','workbench.notGranted':'未授权','workbench.matrixEmpty':'没有符合筛选条件的资源。','workbench.lockedHelp':'此 Action 由 {sources} Module 提供；请调整 Permission Module 才能移除。','workbench.editableAllowHelp':'勾选会创建 Individual ALLOW；未勾选不代表 DENY。','workbench.removeRedundant':'移除重复个别授权','workbench.redundantTitle':'个别授权已与 Module 重复','workbench.redundantBody':'{actions} 已由 Module 提供。系统不会自动删除，请明确移除后再保存。','workbench.noDenyBoundary':'未勾选只表示没有 Individual ALLOW，不代表 explicit DENY。Module 提供的 Action 只能从 Permission Modules 调整。',
+  'settings.create.button':'新增资源','settings.create.title':'新增 Synthetic Global Resource','settings.create.subtitle':'创建可供所有 Principal Workbench 使用的全局 Prototype Resource。','settings.create.save':'创建资源','settings.create.return':'返回 Evren 权限工作台','settings.create.boundary':'新 Resource 默认 No Grants。创建 Resource 不会同时创建 Individual Grant。','settings.create.error.forbidden':'只有管理员可以创建资源。','settings.create.error.invalid-key':'Resource Key 必须为 2–64 位小写字母、数字与连字符。','settings.create.error.name-required':'请输入 Display Name。','settings.create.error.duplicate-key':'此 Resource Key 已存在。'
+});
+Object.assign(EN, {
+  'workbench.matrixTitle':'Resource Access Matrix','workbench.matrixHelp':'Shows every active resource. Module actions are checked and locked; editable checks only add or remove an Individual ALLOW.','workbench.searchResource':'Search resource name, key, or category…','workbench.allCategories':'All categories','workbench.allResources':'All Resources','workbench.granted':'Granted','workbench.notGranted':'Not Granted','workbench.matrixEmpty':'No resources match these filters.','workbench.lockedHelp':'This action is granted by {sources} Module. Adjust the Permission Module to remove it.','workbench.editableAllowHelp':'Checking adds an Individual ALLOW. Unchecked never means DENY.','workbench.removeRedundant':'Remove redundant individual action','workbench.redundantTitle':'Individual action is redundant with a Module','workbench.redundantBody':'{actions} is already module-provided. It was not silently deleted; remove it explicitly before saving.','workbench.noDenyBoundary':'Unchecked means no Individual ALLOW; it never means explicit DENY. Module-provided actions can only be changed through Permission Modules.',
+  'settings.create.button':'Add Resource','settings.create.title':'Add Synthetic Global Resource','settings.create.subtitle':'Create a global prototype Resource available to every Principal Workbench.','settings.create.save':'Create Resource','settings.create.return':'Return to Evren Permission Workbench','settings.create.boundary':'A new Resource defaults to No Grants. Creating it does not create an Individual Grant.','settings.create.error.forbidden':'Only administrators can create resources.','settings.create.error.invalid-key':'Resource Key must be 2–64 lowercase letters, numbers, or hyphens.','settings.create.error.name-required':'Display Name is required.','settings.create.error.duplicate-key':'This Resource Key already exists.'
+});
 const DICTS = {'zh-TW':ZH_TW,'zh-CN':ZH_CN,'en-US':EN};
 function normalize(value){ if(!value)return null; const v=String(value).trim().replace('_','-').toLowerCase(); if(v.startsWith('zh-tw')||v.startsWith('zh-hant'))return 'zh-TW'; if(v.startsWith('zh-cn')||v.startsWith('zh-hans')||v==='zh')return 'zh-CN'; if(v.startsWith('en'))return 'en-US'; return null; }
 function resolveLocale(){ const q=normalize(new URLSearchParams(location.search).get('lang')); if(q)return q; const injected=normalize(window.__FIN_SSC_PORTAL__?.locale||window.__FIN_SSC_PORTAL__?.larkClientLanguage); if(injected)return injected; for(const item of (navigator.languages||[])){const n=normalize(item); if(n)return n;} return normalize(navigator.language)||'zh-TW'; }
@@ -330,9 +558,11 @@ function createTranslator(locale=resolveLocale()){ const selected=DICTS[locale]?
 // ---- app.js ----
 let context = getPortalContext();
 const { locale, t } = createTranslator();
-let activeSettingsTab = 'resources';
+let activeSettingsTab = new URLSearchParams(location.search).get('tab') || 'resources';
 const peopleState = { search: '', department: '', mode: 'all', page: 1, pageSize: 50 };
 const auditState = { search: '', eventType: '', page: 1, pageSize: 50 };
+let workbenchDraft = null;
+const matrixFilterState = { search: '', category: '', grant: 'all' };
 const $ = id => document.getElementById(id);
 const esc = v => String(v).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
 const roleLabel = r => t(r.labelKey);
@@ -341,6 +571,8 @@ const rCategory = r => r.customCategory || t(r.categoryKey);
 const rDesc = r => r.customDescription || t(r.descriptionKey);
 const set = (id, value) => { if ($(id)) $(id).textContent = value; };
 const debounce = (fn, wait = 180) => { let timer; return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), wait); }; };
+const moduleLabel = key => t(`role.${key}`);
+const brandsText = principal => principal.brands?.length ? principal.brands.join(', ') : t('people.noBrands');
 
 function applyLocale(){
   document.documentElement.lang = locale==='zh-TW'?'zh-Hant-TW':locale==='zh-CN'?'zh-Hans-CN':'en-US'; document.title=t('app.title');
@@ -361,24 +593,95 @@ function renderResources(){ set('resourceCount',t('catalog.count',{count:context
 function renderComparison(){ if(!context.canViewComparison){$('comparisonPanel').hidden=true;return;} $('comparisonPanel').hidden=false; $('comparisonHead').innerHTML=`<tr><th>${esc(t('comparison.resource'))}</th>${context.allRoles.map(r=>`<th>${esc(roleLabel(r))}</th>`).join('')}</tr>`; $('comparisonRows').innerHTML=context.catalog.map(res=>`<tr><td><div class="system-cell"><span class="system-icon">${esc(res.icon)}</span>${esc(rName(res))}</div></td>${context.allRoles.map(role=>`<td><span class="status ${context.hasGrant(role.key,res.key)?'yes':'no'}">${context.hasGrant(role.key,res.key)?'✓':'—'}</span></td>`).join('')}</tr>`).join(''); }
 const actions=id=>`<div class="settings-actions"><button id="${id}" class="primary-button">${esc(t('settings.save'))}</button><button class="secondary-button" data-reset>${esc(t('settings.reset'))}</button></div>`;
 function bindReset(){ document.querySelectorAll('[data-reset]').forEach(b=>b.onclick=()=>{ if(!confirm(t('settings.resetConfirm')))return; resetPrototypeSettings(); refresh(); toast(t('settings.resetDone')); }); }
-function renderResourceTab(){ $('settingsContent').innerHTML=`<div class="settings-section-heading"><div><h2>${esc(t('settings.resources.title'))}</h2><p>${esc(t('settings.resources.subtitle'))}</p></div></div><div class="table-wrap settings-table-wrap"><table class="settings-table"><thead><tr><th>${esc(t('settings.resource.key'))}</th><th>${esc(t('settings.resource.name'))}</th><th>${esc(t('settings.resource.category'))}</th><th>${esc(t('settings.resource.description'))}</th><th>${esc(t('settings.resource.enabled'))}</th></tr></thead><tbody>${context.catalog.map(r=>`<tr data-row="${r.key}"><td><code>${esc(r.key)}</code></td><td><input data-f="name" value="${esc(rName(r))}"></td><td><input data-f="category" value="${esc(rCategory(r))}"></td><td><textarea data-f="description" rows="2">${esc(rDesc(r))}</textarea></td><td class="center-cell"><label class="switch"><input data-f="enabled" type="checkbox" ${r.enabled?'checked':''}><span></span></label></td></tr>`).join('')}</tbody></table></div>${actions('saveResources')}`; $('saveResources').onclick=()=>{ saveResourceSettings([...document.querySelectorAll('[data-row]')].map(row=>({key:row.dataset.row,name:row.querySelector('[data-f=name]').value,category:row.querySelector('[data-f=category]').value,description:row.querySelector('[data-f=description]').value,enabled:row.querySelector('[data-f=enabled]').checked}))); refresh(); toast(t('settings.saved')); }; bindReset(); }
+function renderResourceTab(){
+  const params=new URLSearchParams(location.search),creating=params.get('mode')==='create',returnPrincipal=params.get('returnPrincipal');
+  const createForm=creating?`<section class="synthetic-resource-create"><div class="workbench-heading"><div><h3>${esc(t('settings.create.title'))}</h3><p>${esc(t('settings.create.subtitle'))}</p></div><span class="hero-badge">Global · Synthetic</span></div><div class="resource-create-grid"><label><span>${esc(t('settings.resource.key'))}</span><input id="newResourceKey" maxlength="64" placeholder="travel-analytics"></label><label><span>${esc(t('settings.resource.name'))}</span><input id="newResourceName" maxlength="120"></label><label><span>${esc(t('settings.resource.category'))}</span><input id="newResourceCategory" maxlength="120"></label><label class="wide"><span>${esc(t('settings.resource.description'))}</span><textarea id="newResourceDescription" rows="3" maxlength="500"></textarea></label><label class="enabled-field"><input id="newResourceEnabled" type="checkbox" checked> ${esc(t('settings.resource.enabled'))}</label></div><div id="createResourceError" class="form-error" role="alert"></div><div class="create-resource-actions"><button id="cancelCreateResource" class="secondary-button" type="button">${esc(t('workbench.cancel'))}</button><button id="saveNewResource" class="primary-button" type="button">${esc(t('settings.create.save'))}</button></div><div class="domain-note">${esc(t('settings.create.boundary'))}</div></section>`:'';
+  $('settingsContent').innerHTML=`<div class="settings-section-heading"><div><h2>${esc(t('settings.resources.title'))}</h2><p>${esc(t('settings.resources.subtitle'))}</p></div><div class="settings-heading-actions">${returnPrincipal?`<button id="returnToPrincipal" class="secondary-button" type="button">← ${esc(t('settings.create.return'))}</button>`:''}<button id="openCreateResource" class="secondary-button" type="button">+ ${esc(t('settings.create.button'))}</button></div></div>${createForm}<div class="table-wrap settings-table-wrap"><table class="settings-table"><thead><tr><th>${esc(t('settings.resource.key'))}</th><th>${esc(t('settings.resource.name'))}</th><th>${esc(t('settings.resource.category'))}</th><th>${esc(t('settings.resource.description'))}</th><th>${esc(t('settings.resource.enabled'))}</th></tr></thead><tbody>${context.catalog.map(r=>`<tr data-row="${r.key}"><td><code>${esc(r.key)}</code>${r.syntheticCustom?`<small class="row-key">Synthetic custom</small>`:''}</td><td><input data-f="name" value="${esc(rName(r))}"></td><td><input data-f="category" value="${esc(rCategory(r))}"></td><td><textarea data-f="description" rows="2">${esc(rDesc(r))}</textarea></td><td class="center-cell"><label class="switch"><input data-f="enabled" type="checkbox" ${r.enabled?'checked':''}><span></span></label></td></tr>`).join('')}</tbody></table></div>${actions('saveResources')}`;
+  const navigateCreate=enabled=>{const u=new URL(location.href);u.searchParams.set('tab','resources');enabled?u.searchParams.set('mode','create'):u.searchParams.delete('mode');location.assign(u);};
+  $('openCreateResource').onclick=()=>navigateCreate(true);
+  if(returnPrincipal)$('returnToPrincipal').onclick=()=>{const u=new URL(location.href);u.searchParams.set('page','people-overview');u.searchParams.set('principal',returnPrincipal);u.searchParams.delete('tab');u.searchParams.delete('mode');u.searchParams.delete('returnPrincipal');location.assign(u);};
+  if(creating){$('cancelCreateResource').onclick=()=>navigateCreate(false);$('saveNewResource').onclick=()=>{const result=createSyntheticResource({key:$('newResourceKey').value,name:$('newResourceName').value,category:$('newResourceCategory').value,description:$('newResourceDescription').value,enabled:$('newResourceEnabled').checked});if(!result.ok){$('createResourceError').textContent=t(`settings.create.error.${result.code}`);return;}const u=new URL(location.href);u.searchParams.delete('mode');location.assign(u);};}
+  $('saveResources').onclick=()=>{ saveResourceSettings([...document.querySelectorAll('[data-row]')].map(row=>({key:row.dataset.row,name:row.querySelector('[data-f=name]').value,category:row.querySelector('[data-f=category]').value,description:row.querySelector('[data-f=description]').value,enabled:row.querySelector('[data-f=enabled]').checked}))); refresh(); toast(t('settings.saved')); }; bindReset();
+}
 function renderPermissionsTab(){ $('settingsContent').innerHTML=`<div class="settings-section-heading"><div><h2>${esc(t('settings.permissions.title'))}</h2><p>${esc(t('settings.permissions.subtitle'))}</p></div><div class="reserved-role"><button class="secondary-button" disabled>${esc(t('settings.permissions.addRole'))}</button><small>${esc(t('settings.permissions.addRoleHint'))}</small></div></div><div class="table-wrap settings-table-wrap"><table class="permission-editor"><thead><tr><th>${esc(t('settings.permissions.resource'))}</th>${context.allRoles.map(r=>`<th>${esc(roleLabel(r))}</th>`).join('')}</tr></thead><tbody>${context.catalog.map(res=>`<tr><td><div class="system-cell"><span class="system-icon">${esc(res.icon)}</span>${esc(rName(res))}</div></td>${context.allRoles.map(role=>`<td class="center-cell"><input class="grant-checkbox" type="checkbox" data-role="${role.key}" data-resource="${res.key}" ${context.hasGrant(role.key,res.key)?'checked':''}></td>`).join('')}</tr>`).join('')}</tbody></table></div>${actions('saveGrants')}`; $('saveGrants').onclick=()=>{saveRoleGrants([...document.querySelectorAll('.grant-checkbox:checked')].map(i=>({roleKey:i.dataset.role,resourceKey:i.dataset.resource})));refresh();toast(t('settings.saved'));}; bindReset(); }
 function renderBaseTab(){ const b=context.baseSettings; $('settingsContent').innerHTML=`<div class="settings-section-heading"><div><h2>${esc(t('settings.base.title'))}</h2><p>${esc(t('settings.base.subtitle'))}</p></div></div><div class="base-settings-grid"><label><span>${esc(t('settings.base.alias'))}</span><input id="baseAlias" value="${esc(b.baseAlias)}"></label><label><span>${esc(t('settings.base.resourceTable'))}</span><input id="resourceTable" value="${esc(b.resourceTable)}"></label><label><span>${esc(t('settings.base.roleTable'))}</span><input id="roleTable" value="${esc(b.roleTable)}"></label><label><span>${esc(t('settings.base.assignmentTable'))}</span><input id="assignmentTable" value="${esc(b.assignmentTable)}"></label><label><span>${esc(t('settings.base.cacheTtl'))}</span><input id="cacheTtlSeconds" type="number" min="60" max="86400" value="${b.cacheTtlSeconds}"></label></div>${actions('saveBase')}`; $('saveBase').onclick=()=>{saveBaseSettings({baseAlias:$('baseAlias').value,resourceTable:$('resourceTable').value,roleTable:$('roleTable').value,assignmentTable:$('assignmentTable').value,cacheTtlSeconds:$('cacheTtlSeconds').value});refresh();toast(t('settings.saved'));}; bindReset(); }
 function renderFutureTab(){ const cards=[['settings.future.scope','settings.future.scopeText','S'],['settings.future.org','settings.future.orgText','O'],['settings.future.owner','settings.future.ownerText','V'],['settings.future.approval','settings.future.approvalText','A']]; $('settingsContent').innerHTML=`<div class="settings-section-heading"><div><h2>${esc(t('settings.future.title'))}</h2><p>${esc(t('settings.future.subtitle'))}</p></div></div><div class="future-grid">${cards.map(c=>`<article class="future-card"><div class="future-icon">${c[2]}</div><h3>${esc(t(c[0]))}</h3><p>${esc(t(c[1]))}</p><span class="reserved-pill">Reserved</span></article>`).join('')}</div><div class="settings-actions"><button class="secondary-button" data-reset>${esc(t('settings.reset'))}</button></div>`; bindReset(); }
 function renderSettings(){ if(!context.canManageResources)return; const tabs=[['resources','settings.tab.resources'],['permissions','settings.tab.permissions'],['base','settings.tab.base'],['future','settings.tab.future']]; $('settingsTabs').innerHTML=tabs.map(x=>`<button class="settings-tab ${activeSettingsTab===x[0]?'active':''}" data-tab="${x[0]}">${esc(t(x[1]))}</button>`).join(''); $('settingsTabs').querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{activeSettingsTab=b.dataset.tab;renderSettings();}); if(activeSettingsTab==='permissions')renderPermissionsTab(); else if(activeSettingsTab==='base')renderBaseTab(); else if(activeSettingsTab==='future')renderFutureTab(); else renderResourceTab(); }
 
-function peopleRow(x){ return `<tr><td><strong>${esc(x.principal.larkUserName)}</strong><small class="row-key">${esc(x.principalKey)}</small></td><td>${esc(x.principal.department)}</td><td>${esc(x.principal.brand)}</td><td>${esc(x.principal.title)}</td><td><span class="current-role-pill">${esc(roleLabel(x.role))}</span></td></tr>`; }
-function peopleCard(x){ return `<article class="people-card"><div class="people-card-head"><div class="identity-avatar mini">E</div><div><strong>${esc(x.principal.larkUserName)}</strong><span>${esc(roleLabel(x.role))}</span></div></div><dl><div><dt>${esc(t('people.department'))}</dt><dd>${esc(x.principal.department)}</dd></div><div><dt>${esc(t('people.brand'))}</dt><dd>${esc(x.principal.brand)}</dd></div><div><dt>${esc(t('people.titleCol'))}</dt><dd>${esc(x.principal.title)}</dd></div></dl></article>`; }
+function modulePills(keys){ return `<span class="module-pill-list">${keys.map(key=>`<span class="current-role-pill">${esc(moduleLabel(key))}</span>`).join('')}</span>`; }
+function openPrincipal(principalKey){ const u=new URL(location.href);u.searchParams.set('page','people-overview');u.searchParams.set('principal',principalKey);location.assign(u); }
+function peopleRow(x){ return `<tr class="people-click-row" data-principal="${esc(x.principalKey)}"><td><button class="people-name-button" type="button" data-open-principal="${esc(x.principalKey)}"><strong>${esc(x.principal.larkUserName)}</strong><small class="row-key">${esc(x.principalKey)}</small></button></td><td>${esc(x.principal.department)}</td><td>${esc(brandsText(x.principal))}</td><td>${esc(x.principal.title)}</td><td>${modulePills(x.moduleKeys)}</td></tr>`; }
+function peopleCard(x){ return `<article class="people-card people-click-card" tabindex="0" role="button" data-open-principal="${esc(x.principalKey)}"><div class="people-card-head"><div class="identity-avatar mini">E</div><div><strong>${esc(x.principal.larkUserName)}</strong>${modulePills(x.moduleKeys)}</div></div><dl><div><dt>${esc(t('people.department'))}</dt><dd>${esc(x.principal.department)}</dd></div><div><dt>${esc(t('people.brand'))}</dt><dd>${esc(brandsText(x.principal))}</dd></div><div><dt>${esc(t('people.titleCol'))}</dt><dd>${esc(x.principal.title)}</dd></div></dl></article>`; }
 function renderPeopleGroups(items){ const groups=new Map(); items.forEach(x=>{const key=x.principal.department||t('people.unknownDepartment');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);}); $('peopleGroupedList').innerHTML=[...groups].map(([department,rows])=>`<section class="people-group"><div class="people-group-heading"><h3>${esc(department)}</h3><span>${esc(t('people.groupCount',{count:rows.length}))}</span></div><div class="people-group-grid">${rows.map(peopleCard).join('')}</div></section>`).join(''); }
 function updatePeopleResults(){ const data=queryPeople(peopleState); peopleState.page=data.page; set('peopleResultCount',t('people.results',{count:data.total})); set('peoplePageStatus',t('people.page',{page:data.page,totalPages:data.totalPages})); $('peoplePrev').disabled=data.page<=1; $('peopleNext').disabled=data.page>=data.totalPages; if($('peopleDepartmentFilter').options.length<=1){ $('peopleDepartmentFilter').innerHTML=`<option value="">${esc(t('people.allDepartments'))}</option>${data.departments.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('')}`; $('peopleDepartmentFilter').value=peopleState.department; }
   const grouped=peopleState.mode==='department'; $('peopleAllList').hidden=grouped; $('peopleGroupedList').hidden=!grouped;
   if(grouped) renderPeopleGroups(data.items); else { $('peopleRows').innerHTML=data.items.map(peopleRow).join(''); $('mobilePeopleList').innerHTML=data.items.map(peopleCard).join(''); }
+  document.querySelectorAll('[data-open-principal]').forEach(el=>{el.onclick=e=>{e.stopPropagation();openPrincipal(el.dataset.openPrincipal);};el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPrincipal(el.dataset.openPrincipal);}};});
 }
-function renderPeople(){ if(!context.canViewPeople)return; $('peopleHead').innerHTML=`<tr><th>${esc(t('people.name'))}</th><th>${esc(t('people.department'))}</th><th>${esc(t('people.brand'))}</th><th>${esc(t('people.titleCol'))}</th><th>${esc(t('people.role'))}</th></tr>`; $('peopleSearch').placeholder=t('people.searchPlaceholder'); $('peopleSearch').value=peopleState.search; $('peopleAllMode').textContent=t('people.allMembers'); $('peopleGroupMode').textContent=t('people.groupByDepartment'); $('peoplePrev').textContent=t('people.prev'); $('peopleNext').textContent=t('people.next'); $('peopleAllMode').classList.toggle('active',peopleState.mode==='all'); $('peopleGroupMode').classList.toggle('active',peopleState.mode==='department');
+function renderPeople(){ if(!context.canViewPeople)return; $('peopleHead').innerHTML=`<tr><th>${esc(t('people.name'))}</th><th>${esc(t('people.department'))}</th><th>${esc(t('people.brand'))}</th><th>${esc(t('people.titleCol'))}</th><th>${esc(t('people.modules'))}</th></tr>`; $('peopleSearch').placeholder=t('people.searchPlaceholder'); $('peopleSearch').value=peopleState.search; $('peopleAllMode').textContent=t('people.allMembers'); $('peopleGroupMode').textContent=t('people.groupByDepartment'); $('peoplePrev').textContent=t('people.prev'); $('peopleNext').textContent=t('people.next'); $('peopleAllMode').classList.toggle('active',peopleState.mode==='all'); $('peopleGroupMode').classList.toggle('active',peopleState.mode==='department');
   const onSearch=debounce(()=>{peopleState.search=$('peopleSearch').value;peopleState.page=1;updatePeopleResults();}); $('peopleSearch').oninput=onSearch;
   $('peopleDepartmentFilter').onchange=()=>{peopleState.department=$('peopleDepartmentFilter').value;peopleState.page=1;updatePeopleResults();};
   $('peopleAllMode').onclick=()=>{peopleState.mode='all';peopleState.page=1;renderPeople();}; $('peopleGroupMode').onclick=()=>{peopleState.mode='department';peopleState.page=1;renderPeople();};
   $('peoplePrev').onclick=()=>{peopleState.page=Math.max(1,peopleState.page-1);updatePeopleResults();}; $('peopleNext').onclick=()=>{peopleState.page+=1;updatePeopleResults();}; updatePeopleResults();
+}
+
+function sourceLabel(source){ return source.type==='module' ? t('workbench.sourceModule',{name:moduleLabel(source.key)}) : t('workbench.sourceIndividual'); }
+function sourceList(sources){ return sources.map(source=>`<span class="source-chip ${source.type}">${esc(sourceLabel(source))}</span>`).join(''); }
+function actionList(actions){ return actions.map(action=>`<span class="action-chip">${esc(t(`workbench.${action}`))}</span>`).join(''); }
+function effectiveTable(rows){
+  if(!rows.length)return `<div class="empty-state">${esc(t('workbench.noEffective'))}</div>`;
+  const body=rows.map(row=>`<tr><td><div class="system-cell"><span class="system-icon">${esc(row.resource.icon)}</span>${esc(rName(row.resource))}</div></td><td>${actionList(row.actions)}</td><td>${sourceList(row.sources)}</td></tr>`).join('');
+  const mobile=rows.map(row=>`<article class="effective-card"><div class="system-cell"><span class="system-icon">${esc(row.resource.icon)}</span><strong>${esc(rName(row.resource))}</strong></div><div>${actionList(row.actions)}</div><div>${sourceList(row.sources)}</div></article>`).join('');
+  return `<div class="table-wrap effective-table-wrap"><table><thead><tr><th>${esc(t('workbench.resource'))}</th><th>${esc(t('workbench.effectiveActions'))}</th><th>${esc(t('workbench.effectiveSource'))}</th></tr></thead><tbody>${body}</tbody></table></div><div class="mobile-effective-list">${mobile}</div>`;
+}
+function impactItem(item,kind){
+  const resource=item.resource||context.catalog.find(r=>r.key===item.resourceKey);
+  const sourceChange=kind==='sourceChanged' ? `<small>${esc(t('workbench.before'))}: ${esc(item.beforeSources.map(sourceLabel).join(' + '))}<br>${esc(t('workbench.after'))}: ${esc(item.afterSources.map(sourceLabel).join(' + '))}</small>` : '';
+  return `<li><strong>${esc(rName(resource))}</strong><span>${esc(t(`workbench.${item.action}`))}</span>${sourceChange}</li>`;
+}
+function impactMarkup(impact){
+  const groups=[['added','workbench.impactAdded'],['removed','workbench.impactRemoved'],['sourceChanged','workbench.impactSourceChanged']];
+  if(groups.every(([key])=>!impact[key].length))return `<div class="empty-state compact">${esc(t('workbench.noChanges'))}</div>`;
+  return `<div class="impact-grid">${groups.map(([key,label])=>`<section class="impact-group ${key}"><h4>${esc(t(label))}<span>${impact[key].length}</span></h4>${impact[key].length?`<ul>${impact[key].map(item=>impactItem(item,key)).join('')}</ul>`:`<p>${esc(t('workbench.none'))}</p>`}</section>`).join('')}</div>`;
+}
+function consolidateIndividualGrants(grants){ const byResource=new Map();grants.forEach(item=>{const grant={...item,actions:[...item.actions]};if(!byResource.has(grant.resourceKey))byResource.set(grant.resourceKey,grant);else{const current=byResource.get(grant.resourceKey);current.actions=[...new Set([...current.actions,...grant.actions])];}});return [...byResource.values()]; }
+function initializeWorkbenchDraft(workbench){ workbenchDraft={ principalKey:workbench.principalKey, modules:[...workbench.modules], individualGrants:consolidateIndividualGrants(workbench.individualGrants) }; }
+function matrixActionControl(row,action){ const state=row.actions[action],label=t(`workbench.${action}`);const moduleBadges=state.moduleSources.map(key=>`<span class="source-chip module">${esc(t('workbench.sourceModule',{name:moduleLabel(key)}))}</span>`).join('');const individualBadge=state.individual?`<span class="source-chip individual">${esc(t('workbench.sourceIndividual'))}</span>`:'';const title=state.locked?t('workbench.lockedHelp',{sources:state.moduleSources.map(moduleLabel).join(' + ')}):t('workbench.editableAllowHelp');return `<div class="matrix-action ${state.locked?'locked':'editable'} ${state.redundant?'redundant':''}"><label title="${esc(title)}"><input type="checkbox" data-matrix-action="${action}" data-resource-key="${esc(row.resource.key)}" ${state.checked?'checked':''} ${state.locked?'disabled':''}><span>${esc(label)}</span></label><div class="matrix-action-sources">${moduleBadges}${individualBadge}</div>${state.redundant?`<button class="text-button danger" type="button" data-remove-redundant="${action}" data-resource-key="${esc(row.resource.key)}">${esc(t('workbench.removeRedundant'))}</button>`:''}</div>`; }
+function matrixGrantConfig(row){ const grant=row.individualGrant;if(!grant)return '';const redundant=['discover','launch'].filter(action=>row.actions[action].redundant);return `<div class="matrix-grant-config">${redundant.length?`<div class="redundant-warning"><strong>${esc(t('workbench.redundantTitle'))}</strong><span>${esc(t('workbench.redundantBody',{actions:redundant.map(action=>t(`workbench.${action}`)).join(' + ')}))}</span></div>`:''}<label><span>${esc(t('workbench.validity'))}</span><select data-grant-field="validity" data-resource-key="${esc(row.resource.key)}"><option value="permanent" ${grant.validity==='permanent'?'selected':''}>${esc(t('workbench.permanent'))}</option><option value="time-bound" ${grant.validity==='time-bound'?'selected':''}>${esc(t('workbench.timeBound'))}</option></select></label>${grant.validity==='time-bound'?`<label><span>${esc(t('workbench.expires'))}</span><input type="date" data-grant-field="expiresAt" data-resource-key="${esc(row.resource.key)}" value="${esc(grant.expiresAt||'')}"></label>`:''}<label class="reason"><span>${esc(t('workbench.reason'))}</span><input maxlength="300" data-grant-field="reason" data-resource-key="${esc(row.resource.key)}" value="${esc(grant.reason||'')}" placeholder="${esc(t('workbench.reasonPlaceholder'))}"></label></div>`; }
+function resourceMatrixMarkup(rows){
+  const tableRows=rows.map(row=>{const sources=[...new Set(['discover','launch'].flatMap(action=>row.actions[action].moduleSources))].map(key=>`<span class="source-chip module">${esc(t('workbench.sourceModule',{name:moduleLabel(key)}))}</span>`).join('')+(row.individualGrant?`<span class="source-chip individual">${esc(t('workbench.sourceIndividual'))}</span>`:'');const attrs=`data-matrix-item data-search="${esc(`${rName(row.resource)} ${row.resource.key} ${rCategory(row.resource)}`.toLowerCase())}" data-category="${esc(rCategory(row.resource))}" data-granted="${row.granted?'yes':'no'}"`;return `<tr ${attrs}><td><div class="system-cell"><span class="system-icon">${esc(row.resource.icon)}</span><span><strong>${esc(rName(row.resource))}</strong><small class="row-key">${esc(row.resource.key)}</small></span></div></td><td>${esc(rCategory(row.resource))}</td><td>${sources||'—'}</td><td>${matrixActionControl(row,'discover')}</td><td>${matrixActionControl(row,'launch')}</td></tr>${row.individualGrant?`<tr class="matrix-config-row" ${attrs}><td colspan="5">${matrixGrantConfig(row)}</td></tr>`:''}`;}).join('');
+  const cards=rows.map(row=>{const attrs=`data-matrix-item data-search="${esc(`${rName(row.resource)} ${row.resource.key} ${rCategory(row.resource)}`.toLowerCase())}" data-category="${esc(rCategory(row.resource))}" data-granted="${row.granted?'yes':'no'}"`;return `<article class="resource-matrix-card" ${attrs}><div class="resource-matrix-card-head"><div class="system-cell"><span class="system-icon">${esc(row.resource.icon)}</span><span><strong>${esc(rName(row.resource))}</strong><small class="row-key">${esc(row.resource.key)} · ${esc(rCategory(row.resource))}</small></span></div></div><div class="mobile-matrix-actions">${matrixActionControl(row,'discover')}${matrixActionControl(row,'launch')}</div>${matrixGrantConfig(row)}</article>`;}).join('');
+  return `<div class="table-wrap resource-matrix-table"><table><thead><tr><th>${esc(t('workbench.resource'))}</th><th>${esc(t('catalog.category'))}</th><th>${esc(t('workbench.effectiveSource'))}</th><th>${esc(t('workbench.discover'))}</th><th>${esc(t('workbench.launch'))}</th></tr></thead><tbody>${tableRows}</tbody></table></div><div class="mobile-resource-matrix">${cards}</div><div id="matrixEmpty" class="empty-state compact" hidden>${esc(t('workbench.matrixEmpty'))}</div>`;
+}
+function applyMatrixFilters(){let visible=0;document.querySelectorAll('[data-matrix-item]').forEach(item=>{const matchesSearch=!matrixFilterState.search||item.dataset.search.includes(matrixFilterState.search.toLowerCase());const matchesCategory=!matrixFilterState.category||item.dataset.category===matrixFilterState.category;const matchesGrant=matrixFilterState.grant==='all'||(matrixFilterState.grant==='granted'?item.dataset.granted==='yes':item.dataset.granted==='no');item.hidden=!(matchesSearch&&matchesCategory&&matchesGrant);if(!item.hidden&&!item.classList.contains('matrix-config-row')&&!item.closest('.mobile-resource-matrix'))visible++;});$('matrixEmpty').hidden=visible>0;}
+function updateIndividualAction(resourceKey,action,checked){let grant=workbenchDraft.individualGrants.find(item=>item.resourceKey===resourceKey);if(checked){if(!grant){grant={id:`individual-${Date.now()}`,resourceKey,actions:[],validity:'permanent',expiresAt:'',reason:''};workbenchDraft.individualGrants.push(grant);}if(!grant.actions.includes(action))grant.actions.push(action);}else if(grant){grant.actions=grant.actions.filter(item=>item!==action);if(!grant.actions.length)workbenchDraft.individualGrants=workbenchDraft.individualGrants.filter(item=>item!==grant);}renderWorkbench();}
+function renderWorkbench(){
+  const principalKey=new URLSearchParams(location.search).get('principal');
+  const workbench=getPrincipalPermissionWorkbench(principalKey);
+  if(!workbench){ const u=new URL(location.href);u.searchParams.delete('principal');location.assign(u);return; }
+  if(!workbenchDraft||workbenchDraft.principalKey!==principalKey)initializeWorkbenchDraft(workbench);
+  const preview=previewPrincipalPermissionChanges(principalKey,workbenchDraft),matrix=getPrincipalResourceAccessMatrix(principalKey,workbenchDraft);
+  const p=workbench.principal;
+  const categories=[...new Set(matrix.map(row=>rCategory(row.resource)))].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  const moduleCards=workbench.moduleOptions.map(key=>`<label class="module-toggle ${key==='employee'?'baseline':''}"><input type="checkbox" data-module="${key}" ${workbenchDraft.modules.includes(key)?'checked':''} ${key==='employee'?'disabled':''}><span class="module-toggle-mark">${key==='employee'?'✓':'◆'}</span><span><strong>${esc(moduleLabel(key))}</strong><small>${esc(t(key==='employee'?'workbench.employeeHelp':key==='admin'?'workbench.adminHelp':'workbench.explicitHelp'))}</small></span></label>`).join('');
+  $('principalWorkbenchContent').innerHTML=`
+    <section class="page-hero workbench-hero"><div><button id="workbenchBack" class="back-button" type="button">← ${esc(t('workbench.back'))}</button><div class="eyebrow">${esc(t('workbench.eyebrow'))}</div><h1>${esc(t('workbench.title'))}</h1><p>${esc(t('workbench.subtitle'))}</p></div><span class="hero-badge">Synthetic Dry-run</span></section>
+    <div class="principal-workbench">
+      <section class="panel workbench-panel identity-profile-panel"><div class="workbench-heading"><div><h2>${esc(t('workbench.identityTitle'))}</h2><p>${esc(t('workbench.identityHelp'))}</p></div><span class="status-badge ${esc(p.status)}">${esc(t(`people.status.${p.status}`))}</span></div><div class="profile-summary"><div class="identity-avatar workbench-avatar">${esc((p.displayName||'P')[0])}</div><dl><div><dt>${esc(t('people.name'))}</dt><dd>${esc(p.larkUserName)}</dd></div><div><dt>${esc(t('people.department'))}</dt><dd>${esc(p.department)}</dd></div><div><dt>${esc(t('people.brand'))}</dt><dd>${esc(brandsText(p))}<small>${esc(t('workbench.brandMetadata'))}</small></dd></div><div><dt>${esc(t('people.titleCol'))}</dt><dd>${esc(p.title)}</dd></div></dl></div></section>
+      <section class="panel workbench-panel"><div class="workbench-heading"><div><h2>${esc(t('workbench.modulesTitle'))}</h2><p>${esc(t('workbench.modulesHelp'))}</p></div></div><div class="module-toggle-grid">${moduleCards}</div></section>
+      <section class="panel workbench-panel individual-panel"><div class="workbench-heading"><div><h2>${esc(t('workbench.matrixTitle'))}</h2><p>${esc(t('workbench.matrixHelp'))}</p></div><button id="matrixCreateResource" class="secondary-button" type="button">+ ${esc(t('workbench.createResource'))}</button></div><div class="matrix-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="matrixSearch" type="search" value="${esc(matrixFilterState.search)}" placeholder="${esc(t('workbench.searchResource'))}"></label><select id="matrixCategory" class="filter-select"><option value="">${esc(t('workbench.allCategories'))}</option>${categories.map(category=>`<option value="${esc(category)}" ${matrixFilterState.category===category?'selected':''}>${esc(category)}</option>`).join('')}</select><div class="view-segment matrix-segment">${[['all','workbench.allResources'],['granted','workbench.granted'],['not-granted','workbench.notGranted']].map(([key,label])=>`<button class="segment-button ${matrixFilterState.grant===key?'active':''}" type="button" data-matrix-filter="${key}">${esc(t(label))}</button>`).join('')}</div></div>${resourceMatrixMarkup(matrix)}<div class="domain-note">${esc(t('workbench.noDenyBoundary'))}</div></section>
+      <section class="panel workbench-panel effective-panel"><div class="workbench-heading"><div><h2>${esc(t('workbench.effectiveTitle'))}</h2><p>${esc(t('workbench.effectiveHelp'))}</p></div><span class="readonly-chip">${esc(t('workbench.readOnly'))}</span></div>${effectiveTable(preview.after)}</section>
+      <section class="panel workbench-panel impact-panel"><div class="workbench-heading"><div><h2>${esc(t('workbench.impactTitle'))}</h2><p>${esc(t('workbench.impactHelp'))}</p></div></div>${impactMarkup(preview.impact)}</section>
+      <div class="workbench-savebar"><span>${esc(t('workbench.boundary'))}<strong id="workbenchSaveError" class="form-error"></strong></span><div><button id="workbenchCancel" class="secondary-button" type="button">${esc(t('workbench.cancel'))}</button><button id="workbenchSave" class="primary-button" type="button">${esc(t('workbench.save'))}</button></div></div>
+    </div>`;
+  $('workbenchBack').onclick=$('workbenchCancel').onclick=()=>{const u=new URL(location.href);u.searchParams.delete('principal');location.assign(u);};
+  document.querySelectorAll('[data-module]').forEach(input=>input.onchange=()=>{const key=input.dataset.module;workbenchDraft.modules=input.checked?[...new Set([...workbenchDraft.modules,key])]:workbenchDraft.modules.filter(x=>x!==key);renderWorkbench();});
+  document.querySelectorAll('[data-matrix-action]:not(:disabled)').forEach(input=>input.onchange=()=>updateIndividualAction(input.dataset.resourceKey,input.dataset.matrixAction,input.checked));
+  document.querySelectorAll('[data-remove-redundant]').forEach(button=>button.onclick=()=>updateIndividualAction(button.dataset.resourceKey,button.dataset.removeRedundant,false));
+  document.querySelectorAll('[data-grant-field]').forEach(input=>input.onchange=input.oninput=()=>{const grant=workbenchDraft.individualGrants.find(item=>item.resourceKey===input.dataset.resourceKey);if(!grant)return;grant[input.dataset.grantField]=input.value;if(input.dataset.grantField==='validity')renderWorkbench();});
+  $('matrixSearch').oninput=()=>{matrixFilterState.search=$('matrixSearch').value;applyMatrixFilters();};$('matrixCategory').onchange=()=>{matrixFilterState.category=$('matrixCategory').value;applyMatrixFilters();};document.querySelectorAll('[data-matrix-filter]').forEach(button=>button.onclick=()=>{matrixFilterState.grant=button.dataset.matrixFilter;renderWorkbench();});
+  $('matrixCreateResource').onclick=()=>{const u=new URL(location.href);u.searchParams.set('page','resource-settings');u.searchParams.set('tab','resources');u.searchParams.set('mode','create');u.searchParams.set('returnPrincipal',principalKey);u.searchParams.delete('principal');location.assign(u);};applyMatrixFilters();
+  $('workbenchSave').onclick=()=>{const result=savePrincipalPermissionChanges(principalKey,workbenchDraft);if(!result.ok){const sources=result.validation?.sourceKeys?.map(moduleLabel).join(' + ')||'';$('workbenchSaveError').textContent=t(`workbench.error.${result.code}`,{sources});return;}initializeWorkbenchDraft(result.workbench);renderWorkbench();toast(t('workbench.saved'));};
 }
 
 function auditResultBadge(result){ return `<span class="audit-result ${result==='success'?'success':'denied'}">${esc(t(`audit.result.${result}`))}</span>`; }
@@ -387,7 +690,7 @@ function auditCard(x){ const when=new Intl.DateTimeFormat(locale,{year:'numeric'
 function updateAuditResults(){ const data=queryAudit(auditState); auditState.page=data.page; set('auditResultCount',t('audit.results',{count:data.total})); set('auditPageStatus',t('audit.page',{page:data.page,totalPages:data.totalPages})); $('auditPrev').disabled=data.page<=1; $('auditNext').disabled=data.page>=data.totalPages; if($('auditTypeFilter').options.length<=1){$('auditTypeFilter').innerHTML=`<option value="">${esc(t('audit.allTypes'))}</option>${data.eventTypes.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}`; $('auditTypeFilter').value=auditState.eventType;} $('auditRows').innerHTML=data.items.map(auditRow).join(''); $('mobileAuditList').innerHTML=data.items.map(auditCard).join(''); }
 function renderAudit(){ if(!context.canViewAudit)return; $('auditSearch').placeholder=t('audit.searchPlaceholder'); $('auditSearch').value=auditState.search; $('auditPrev').textContent=t('audit.prev'); $('auditNext').textContent=t('audit.next'); $('auditHead').innerHTML=`<tr><th>${esc(t('audit.time'))}</th><th>${esc(t('audit.actor'))}</th><th>${esc(t('audit.event'))}</th><th>${esc(t('audit.target'))}</th><th>${esc(t('audit.source'))}</th><th>${esc(t('audit.result'))}</th></tr>`; const onSearch=debounce(()=>{auditState.search=$('auditSearch').value;auditState.page=1;updateAuditResults();}); $('auditSearch').oninput=onSearch; $('auditTypeFilter').onchange=()=>{auditState.eventType=$('auditTypeFilter').value;auditState.page=1;updateAuditResults();}; $('auditPrev').onclick=()=>{auditState.page=Math.max(1,auditState.page-1);updateAuditResults();}; $('auditNext').onclick=()=>{auditState.page+=1;updateAuditResults();}; updateAuditResults(); }
 
-function renderPage(){ $('homeView').hidden=context.page!=='home'; $('resourceSettingsView').hidden=context.page!=='resource-settings'; $('peopleOverviewView').hidden=context.page!=='people-overview'; $('auditView').hidden=context.page!=='audit'; if(context.page==='resource-settings')renderSettings(); if(context.page==='people-overview')renderPeople(); if(context.page==='audit')renderAudit(); }
+function renderPage(){ const principalKey=context.canViewPeople&&context.page==='people-overview'?new URLSearchParams(location.search).get('principal'):null; $('homeView').hidden=context.page!=='home'; $('resourceSettingsView').hidden=context.page!=='resource-settings'; $('peopleOverviewView').hidden=context.page!=='people-overview'||Boolean(principalKey); $('principalWorkbenchView').hidden=context.page!=='people-overview'||!principalKey; $('auditView').hidden=context.page!=='audit'; if(context.page==='resource-settings')renderSettings(); if(context.page==='people-overview'&&principalKey)renderWorkbench(); else if(context.page==='people-overview')renderPeople(); if(context.page==='audit')renderAudit(); }
 function refresh(){ context=getPortalContext();renderIdentity();renderRuntimeWarning();renderPermissionNotice();renderNavigation();renderRoleSwitcher();renderWelcome();renderMetrics();renderResources();renderComparison();renderPage(); }
 function toast(msg){ const x=$('toast');x.textContent=msg;x.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>x.classList.remove('show'),2600); }
 function setupAbout(){ const d=$('aboutDialog'); $('aboutButton').onclick=()=>d.showModal?d.showModal():d.setAttribute('open',''); d.onclick=e=>{if(e.target===d)d.close();}; }
