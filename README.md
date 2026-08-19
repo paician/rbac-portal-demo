@@ -33,6 +33,12 @@ python -m http.server 8080
   - 全部成員／依部門分組
   - 每頁最多 50 筆，避免一次建立 3,000+ DOM rows
   - Prototype lazy-generate 3,200 筆 synthetic records，用來驗證大型目錄 UX
+  - 點選任一人員進入 Principal Permission Workbench
+  - Identity / Brands / Status 與 Employee + Finance / HOD / Admin explicit modules
+  - All Active Resources 的 Resource Access Matrix，可搜尋、依 Category 與 Granted 狀態篩選
+  - Module Action 顯示 checked + locked；可編輯 Action 只管理 additive ALLOW Individual Grants（永久或限時），未勾選不代表 DENY
+  - 唯讀 Effective Authorization 與儲存前 ADDED / REMOVED / SOURCE_CHANGED dry-run
+  - Workbench 可導向 Resource Settings 建立 synthetic global Resource，再返回原 Principal；新資源預設 No Grants
 - `?role=admin&page=audit`
   - synthetic 登入／資源點擊／管理異動／人員 Joiner-Mover-Leaver event
   - 搜尋、事件類型篩選與分頁
@@ -55,7 +61,11 @@ Prototype 的 Audit event 只是假資料。Production 不得依賴 browser Java
 
 ## Prototype persistence
 
-資源／Grant／Base 設定只儲存在瀏覽器 `localStorage`。未來應以 Flask API / Base Adapter 取代 `adapters/portal-adapter.js` 的本機 persistence；UI 不直接讀取 `data/grants.js`。
+資源／Role Grant／Principal Workbench synthetic 設定／Base 設定只儲存在瀏覽器 `localStorage`。未來應以 Flask API / Base Adapter 取代 `adapters/portal-adapter.js` 的本機 persistence；UI 不直接讀取 `data/grants.js`。
+
+Workbench 中 Brand 與 Resource Category 只作顯示、分組、篩選與搜尋，不參與 authorization。`manager` 保留為 query/internal compatibility key，但 UI 顯示為 HOD。Admin 只代表 Portal Control Plane privilege，不是 Business Resource Superuser。
+
+Resource Catalog defaults 與瀏覽器中的 synthetic custom resources 會由 `catalogRecords()` 組成動態 Prototype registry。這只是可逆的 UX fixture；不得視為 Production Resource Repository 或 schema contract。
 
 ## 多語 Locale resolution
 
