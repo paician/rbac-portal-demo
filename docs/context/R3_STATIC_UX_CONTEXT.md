@@ -7,10 +7,11 @@
 ## 儲存庫識別資訊（Repository Identity）
 
 - 專案：FIN-SSC RBAC Portal Demo／FIN-SSC Static UX Architecture Validation Prototype。
-- 交接內容宣告的 repository：`paician/rbac-portal-demo`。
-- 目前 checkout 設定的 remote：`https://github.com/paician/FIN-SSC-RBAC-Demo.git`。
-- 目前 branch 與已驗證 revision：`main`，位於 `4f7f0cd`（`feat: merge principal permission workbench prototype`）。
-- 交接內容宣告的 repository 名稱與目前 Git remote 不一致。本文件僅記錄此差異，不進行 repository rename，也不變更 Git 設定。
+- Canonical repository：`paician/rbac-portal-demo`。
+- 目前 `origin` 的 fetch／push URL：`https://github.com/paician/rbac-portal-demo.git`。
+- 目前 branch 與已驗證 revision：`main`，位於 `173366cf74bc26bacd699ce545b7badef226051e`（`docs: establish R3 static UX context governance`）。
+- Repository identity discrepancy：`RESOLVED`。
+- Resolution evidence：上一輪 GitHub push redirect 明確回報 repository 已移至 `https://github.com/paician/rbac-portal-demo.git`；目前 `origin` 已指向此 canonical URL。
 
 ## 目前 R2.7 Baseline
 
@@ -30,9 +31,9 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 
 ## 目前 R3 階段
 
-**Context Bootstrap 與 baseline validation。**
+**Context Bootstrap 與 Repository Identity Reconciliation Human Review 均已完成。**
 
-目前已將此 repository 盤點為源自 R2.7、並包含已合併 Permission Workbench capability 的 static prototype。本 Context Handoff 是目前工作階段第一項獲明確授權的 R3 artifact。本文件本身不授權廣泛的 R3 UI migration 或產品實作。
+目前已將此 repository 盤點為源自 R2.7、並包含已合併 Permission Workbench capability 的 static prototype。Repository identity discrepancy 已依 GitHub push redirect 與目前 `origin` 設定完成 reconciliation，且已通過 Human Review。本文件本身不授權廣泛的 R3 UI migration 或產品實作。
 
 ## 必須保留的 UX 能力
 
@@ -86,7 +87,7 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 4. Prototype 維持 static 與 synthetic；Production backend 與 schema 明確延後處理。
 5. Architecture validation 必須清楚維持可替換的 boundary，且不得過早定義 production contract。
 6. 本文件用於記錄工作狀態與決策，不重複也不取代 canonical architecture documentation。
-7. Repository identity discrepancy 在獲得明確處理決策前維持未解狀態；不得自行假設 remote 或 repository rename。
+7. Canonical repository 已確認為 `paician/rbac-portal-demo`，Repository identity discrepancy 狀態為 `RESOLVED`；此次 reconciliation 未建立或 rename repository，也未變更 branch 或 history。
 
 ## 目前實作狀態
 
@@ -104,7 +105,7 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 
 在開始任何廣泛的 R3 implementation 前，必須 review 並核准：
 
-- 本 baseline inventory 與 repository identity discrepancy。
+- 本 baseline inventory；Repository Identity Reconciliation 另依其 Human Review gate 確認。
 - 預定的 R3 UX delta，以及納入範圍的 screen 或 flow。
 - 如何引入 Tabler primitive，且不造成 preserved behavior regression。
 - 針對 RBAC semantics、Admin-only state、i18n、responsive／H5 behavior、Runtime Warning、Permission Freshness、People Overview 與 Permission Workbench 的 preservation check。
@@ -114,4 +115,4 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 
 ## 下一個獲授權的任務
 
-目前獲授權的工作僅限建立、整理與人工 review 此 working Context Handoff。文件獲接受後，必須等待明確的 R3 implementation 或 design-validation task。在取得授權前，不得開始 Tabler migration、變更 preserved UX semantics、新增 production integration，或修改 canonical architecture documentation。
+目前下一個獲授權的工作僅限 Repository Identity Reconciliation 的 Git checkpoint。完成 checkpoint 後，仍必須等待明確的 R3 implementation 或 design-validation task。在取得該授權前，不得開始 Tabler migration、變更 preserved UX semantics、新增 production integration，或修改 canonical architecture documentation。
