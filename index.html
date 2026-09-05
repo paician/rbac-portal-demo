@@ -6,17 +6,28 @@
   <meta name="theme-color" content="#3a2418">
   <meta name="description" content="Finance SSC Portal RBAC 互動式原型">
   <title>Finance SSC Portal｜RBAC Prototype</title>
+  <link rel="stylesheet" href="./vendor/tabler/1.4.0/tabler.min.css">
+  <link rel="stylesheet" href="./styles/fin-tokens.css">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles/r3-shell.css">
 </head>
 <body>
   <div class="app-shell" id="appShell">
-    <aside class="sidebar" id="sidebar" aria-label="主選單">
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-inner">
-        <button id="aboutButton" class="about-button" type="button" aria-label="關於系統">?</button>
+        <button id="aboutButton" class="about-button" type="button">?</button>
         <div class="brand">
           <div class="brand-mark">F</div>
-          <div class="brand-copy"><div class="brand-title">Finance SSC</div><div class="brand-subtitle">Access Gateway</div></div>
+          <div class="brand-copy"><div class="brand-title">FIN-SSC</div><div id="brandSubtitle" class="brand-subtitle"></div></div>
         </div>
+        <div id="environmentMarkers" class="environment-markers">
+          <span id="prototypeMarker" class="badge"></span>
+          <span id="syntheticMarker" class="badge"></span>
+        </div>
+        <section id="surfaceControl" class="surface-control" hidden>
+          <span id="surfaceControlLabel" class="surface-control-label"></span>
+          <div id="surfaceSwitcher" class="surface-switcher nav nav-pills" role="group"></div>
+        </section>
         <section id="runtimeWarning" class="runtime-warning runtime-sidebar" hidden>
           <button id="runtimeWarningToggle" class="runtime-warning-toggle" type="button" aria-expanded="false" aria-controls="runtimeWarningPanel">
             <span class="runtime-warning-icon" aria-hidden="true">!</span>
@@ -37,7 +48,7 @@
             <div id="runtimeWarningBoundary" class="runtime-warning-boundary"></div>
           </div>
         </section>
-        <nav id="sideNav" class="side-nav"></nav>
+        <nav id="sideNav" class="side-nav nav flex-column"></nav>
         <div class="sidebar-footer">FIN-SSC RBAC Demo<br><span id="syntheticLabel"></span></div>
         <section id="identityCard" class="identity-card identity-floating identity-sidebar">
           <button id="identityToggle" class="identity-toggle" type="button" aria-expanded="false" aria-controls="identityPanel">
@@ -62,16 +73,34 @@
           </div>
         </section>
       </div>
-      <button id="sidebarCollapse" class="sidebar-collapse" type="button">‹</button>
+      <button id="sidebarCollapse" class="sidebar-collapse r3-sidebar-boundary-control" type="button" aria-controls="sidebar" aria-expanded="true">‹</button>
     </aside>
     <div id="mobileNavBackdrop" class="mobile-nav-backdrop" hidden></div>
 
-    <main class="main-content">
+    <main class="main-content container-xl">
       <header class="topbar">
-        <div class="mobile-topbar-row"><button id="mobileMenuButton" class="mobile-menu-button" type="button">☰</button><strong>Finance SSC</strong></div>
+        <div class="global-shell-bar d-flex">
+          <div class="mobile-topbar-row"><button id="mobileMenuButton" class="mobile-menu-button btn" type="button">☰</button><strong>FIN-SSC</strong></div>
+          <label class="locale-control" for="localeSwitcher">
+            <span class="locale-icon" aria-hidden="true">🌐</span>
+            <span id="localeSwitcherLabel" class="visually-hidden"></span>
+            <select id="localeSwitcher" class="locale-switcher" autocomplete="off">
+              <option value="zh-TW">繁體中文</option>
+              <option value="zh-CN">简体中文</option>
+              <option value="en-US">English</option>
+            </select>
+          </label>
+        </div>
+        <div class="surface-heading">
+          <div><div id="surfaceEyebrow" class="eyebrow"></div><h1 id="surfaceTitle"></h1><p id="surfaceDescription"></p></div>
+          <span id="surfaceAdminBadge" class="surface-context-badge badge" hidden></span>
+        </div>
         <section id="roleControl" class="role-control" hidden>
           <div id="roleEyebrow" class="eyebrow"></div>
-          <div id="roleSwitcher" class="role-switcher"></div>
+          <div class="preview-controls d-flex flex-wrap gap-2">
+            <div id="roleSwitcher" class="role-switcher"></div>
+            <button id="previewExit" class="preview-exit-button btn" type="button" data-preview-exit="true" hidden></button>
+          </div>
           <p id="roleHelper" class="role-helper"></p>
         </section>
       </header>
@@ -93,10 +122,14 @@
           <div class="landscape"><span class="sun"></span><span class="ridge ridge-back"></span><span class="ridge ridge-front"></span></div>
         </section>
         <section id="metricGrid" class="metric-grid"></section>
-        <section class="panel resource-panel">
+        <section class="panel resource-panel card fin-surface-card">
           <div class="panel-heading"><div><div id="catalogEyebrow" class="eyebrow"></div><h2 id="catalogTitle"></h2><p id="catalogSubtitle"></p></div><span id="resourceCount" class="count-chip"></span></div>
           <div class="table-wrap"><table><thead><tr><th id="resourceSystemHeader"></th><th id="resourceCategoryHeader"></th><th id="resourceDescriptionHeader"></th><th id="resourceAccessHeader"></th><th id="resourceActionHeader"></th></tr></thead><tbody id="resourceRows"></tbody></table></div>
           <div id="mobileResourceList" class="mobile-resource-list"></div>
+        </section>
+        <section id="reservedCapabilities" class="reserved-capabilities card fin-surface-card">
+          <div class="reserved-capabilities-heading"><div><div id="reservedEyebrow" class="eyebrow"></div><h2 id="reservedTitle"></h2><p id="reservedDescription"></p></div><span id="reservedBadge" class="badge"></span></div>
+          <div id="reservedCapabilityGrid" class="row g-3"></div>
         </section>
         <section id="comparisonPanel" class="panel" hidden>
           <div class="panel-heading"><div><div id="comparisonEyebrow" class="eyebrow"></div><h2 id="comparisonTitle"></h2><p id="comparisonSubtitle"></p></div><span id="comparisonAdminChip" class="admin-chip"></span></div>
@@ -106,18 +139,23 @@
         <section class="prototype-note"><strong id="prototypeTitle"></strong><span id="prototypeBody"></span></section>
       </section>
 
+      <section id="adminOverviewView" class="page-view" hidden>
+        <section class="page-hero admin-overview-hero"><div><div id="adminOverviewEyebrow" class="eyebrow"></div><h1 id="adminOverviewTitle"></h1><p id="adminOverviewDescription"></p></div><span id="adminOverviewBadge" class="hero-badge"></span></section>
+        <div id="adminOverviewGrid" class="admin-overview-grid row g-3"></div>
+      </section>
+
       <section id="resourceSettingsView" class="page-view" hidden>
-        <section class="page-hero"><div><div id="settingsEyebrow" class="eyebrow"></div><h1 id="settingsTitle"></h1><p id="settingsSubtitle"></p></div><span class="hero-badge">Base Authoring Plane</span></section>
+        <section class="page-hero"><div><div id="settingsEyebrow" class="eyebrow"></div><h1 id="settingsTitle"></h1><p id="settingsSubtitle"></p></div><span id="settingsHeroBadge" class="hero-badge"></span></section>
         <section class="panel settings-shell"><div id="settingsTabs" class="settings-tabs"></div><div id="settingsContent" class="settings-content"></div></section>
       </section>
 
       <section id="peopleOverviewView" class="page-view" hidden>
-        <section class="page-hero"><div><div id="peopleEyebrow" class="eyebrow"></div><h1 id="peopleTitle"></h1><p id="peopleSubtitle"></p></div><span class="hero-badge">Synthetic Identity</span></section>
+        <section class="page-hero"><div><div id="peopleEyebrow" class="eyebrow"></div><h1 id="peopleTitle"></h1><p id="peopleSubtitle"></p></div><span id="peopleHeroBadge" class="hero-badge"></span></section>
         <section class="panel directory-panel">
           <div class="directory-toolbar">
             <label class="search-field"><span aria-hidden="true">⌕</span><input id="peopleSearch" type="search" autocomplete="off"></label>
-            <select id="peopleDepartmentFilter" class="filter-select" aria-label="Department"><option value=""></option></select>
-            <div class="view-segment" role="group" aria-label="People view mode"><button id="peopleAllMode" class="segment-button active" type="button"></button><button id="peopleGroupMode" class="segment-button" type="button"></button></div>
+            <select id="peopleDepartmentFilter" class="filter-select"><option value=""></option></select>
+            <div id="peopleViewMode" class="view-segment" role="group"><button id="peopleAllMode" class="segment-button active" type="button"></button><button id="peopleGroupMode" class="segment-button" type="button"></button></div>
             <span id="peopleResultCount" class="directory-count"></span>
           </div>
           <div id="peopleAllList">
@@ -134,12 +172,12 @@
       </section>
 
       <section id="auditView" class="page-view" hidden>
-        <section class="page-hero"><div><div id="auditEyebrow" class="eyebrow"></div><h1 id="auditTitle"></h1><p id="auditSubtitle"></p></div><span class="hero-badge">Audit Trail</span></section>
+        <section class="page-hero"><div><div id="auditEyebrow" class="eyebrow"></div><h1 id="auditTitle"></h1><p id="auditSubtitle"></p></div><span id="auditHeroBadge" class="hero-badge"></span></section>
         <section class="panel audit-panel">
           <div class="audit-boundary" id="auditBoundary"></div>
           <div class="directory-toolbar">
             <label class="search-field"><span aria-hidden="true">⌕</span><input id="auditSearch" type="search" autocomplete="off"></label>
-            <select id="auditTypeFilter" class="filter-select" aria-label="Event type"><option value=""></option></select>
+            <select id="auditTypeFilter" class="filter-select"><option value=""></option></select>
             <span id="auditResultCount" class="directory-count"></span>
           </div>
           <div class="table-wrap audit-table-wrap"><table><thead id="auditHead"></thead><tbody id="auditRows"></tbody></table></div>

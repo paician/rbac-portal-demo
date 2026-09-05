@@ -1,0 +1,34 @@
+/* FIN-SSC semantic layer mapped from the validated R2 wood/camel/sand/cream palette. */
+:root {
+  --fin-bg: #fbf8f3;
+  --fin-surface: #fffdf9;
+  --fin-surface-muted: #f8f1e8;
+  --fin-text: #32251f;
+  --fin-text-muted: #7a6b61;
+  --fin-border: #e3d2bf;
+
+  --fin-brand: #925d34;
+  --fin-brand-strong: #3a2418;
+  --fin-accent: #b9824c;
+
+  --fin-success: #6f9c63;
+  --fin-warning: #c47b28;
+  --fin-danger: #cf6b66;
+  --fin-info: #7d728f;
+
+  --fin-radius-sm: 9px;
+  --fin-radius-md: 14px;
+  --fin-radius-lg: 18px;
+
+  --fin-shadow-sm: 0 7px 22px rgba(70, 41, 22, .05);
+  --fin-shadow-md: 0 14px 36px rgba(70, 41, 22, .08), 0 2px 6px rgba(70, 41, 22, .05);
+
+  --fin-sidebar-width: 255px;
+  --fin-content-max: 1640px;
+
+  --tblr-body-bg: var(--fin-bg);
+  --tblr-body-color: var(--fin-text);
+  --tblr-border-color: var(--fin-border);
+  --tblr-primary: var(--fin-brand);
+  --tblr-primary-rgb: 146, 93, 52;
+}

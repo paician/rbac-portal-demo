@@ -2,14 +2,15 @@
 
 > **狀態：** 本文件僅供工作階段上下文交接使用，以支援跨機器、Codex session、Cursor 與 ChatGPT thread 的工作連續性。本文件不是 canonical architecture document，也不是 Production Architecture 的 source of truth。
 
-最後驗證日期：2026-09-04（Asia/Taipei）
+最後驗證日期：2026-09-05（Asia/Taipei）
 
 ## 儲存庫識別資訊（Repository Identity）
 
 - 專案：FIN-SSC RBAC Portal Demo／FIN-SSC Static UX Architecture Validation Prototype。
 - Canonical repository：`paician/rbac-portal-demo`。
 - 目前 `origin` 的 fetch／push URL：`https://github.com/paician/rbac-portal-demo.git`。
-- 目前 branch 與已驗證 revision：`main`，位於 `173366cf74bc26bacd699ce545b7badef226051e`（`docs: establish R3 static UX context governance`）。
+- R3-SUX-01 授權 baseline：`670e054546511b6d656ce7de93b277e07919fc3f`。
+- 目前 working branch：`feat/r3-sux-01-static-foundation`；R3-SUX-01 implementation 尚未建立 commit。
 - Repository identity discrepancy：`RESOLVED`。
 - Resolution evidence：上一輪 GitHub push redirect 明確回報 repository 已移至 `https://github.com/paician/rbac-portal-demo.git`；目前 `origin` 已指向此 canonical URL。
 
@@ -31,9 +32,9 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 
 ## 目前 R3 階段
 
-**Context Bootstrap 與 Repository Identity Reconciliation Human Review 均已完成。**
+**R3-SUX-01-R3 i18n polish：IMPLEMENTED / READY FOR HUMAN REVIEW。**
 
-目前已將此 repository 盤點為源自 R2.7、並包含已合併 Permission Workbench capability 的 static prototype。Repository identity discrepancy 已依 GitHub push redirect 與目前 `origin` 設定完成 reconciliation，且已通過 Human Review。本文件本身不授權廣泛的 R3 UI migration 或產品實作。
+Context Bootstrap、Repository Identity Reconciliation 與 R3-SUX-01 Preflight Repair 均已通過前置 Gate。R3-SUX-01 foundation、R1 View-As repair、R2 sidebar polish 與 R3 visible locale switcher／full-page i18n polish 已完成，現等待 Human UX Final Review。此狀態不授權 R3-SUX-02 或 Production implementation。
 
 ## 必須保留的 UX 能力
 
@@ -92,7 +93,12 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 ## 目前實作狀態
 
 - Static Vanilla HTML／CSS／JavaScript prototype 已存在，可直接開啟或透過 local static server 執行。
-- 目前 UI 主要使用 repository-native markup 與 CSS；Tabler-based R3 migration 尚未實作。
+- 已以 local vendored `@tabler/core 1.4.0` 建立 foundation adoption；未加入 Tabler JavaScript 或 framework runtime。
+- 已新增 FIN-SSC semantic token stylesheet 與 R3 shell override stylesheet；既有 `styles.css` 與 validated feature component styling 仍保留。
+- 已建立 Workspace／Admin Console UX surface、Admin-only surface switcher、minimal Admin Overview，以及 Workspace 的 disabled Reserved Ticket／Workflow／AI positions。
+- `View-As` 非 Admin 身分時會進入 Workspace Preview Mode，隱藏 Admin Console surface selector 與 navigation，並保留明確返回管理員的控制；正常 Admin 與 Legacy Admin page URL 仍可進入 Admin Console context。
+- Desktop sidebar collapse control 已調整為從 sidebar／main content 邊界凸出的 dedicated control；mobile／H5 仍使用既有 drawer navigation。
+- Global shell 已提供 `zh-TW`、`zh-CN`、`en-US` visible locale switcher；切換時保留既有 query state，並以 browser-only `portal_lang` preference 提供 fallback。
 - R2.7 Runtime Warning stacking behavior 已存在。
 - R2.6 shell placement 與 Permission Freshness simulation 已存在。
 - RBAC view、responsive behavior、三種 locale、Resource Settings、People Overview、synthetic Audit 與 browser persistence 已存在。
@@ -115,4 +121,4 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 
 ## 下一個獲授權的任務
 
-目前下一個獲授權的工作僅限 Repository Identity Reconciliation 的 Git checkpoint。完成 checkpoint 後，仍必須等待明確的 R3 implementation 或 design-validation task。在取得該授權前，不得開始 Tabler migration、變更 preserved UX semantics、新增 production integration，或修改 canonical architecture documentation。
+目前下一個獲授權的動作僅為 R3-SUX-01-R3 Human UX Final Review。R3-SUX-02 與 Production implementation 均未獲授權；不得自行 commit、push、merge或進入下一 Stage。

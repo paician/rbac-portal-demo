@@ -4,13 +4,14 @@ import { createSyntheticPeople } from '../data/people.js';
 import { createSyntheticAuditEvents } from '../data/audit-events.js';
 import { RESOURCE_CATALOG } from '../data/resources.js';
 import { ROLE_RESOURCE_GRANTS } from '../data/grants.js';
-import { NAVIGATION_BY_ROLE } from '../data/navigation.js';
+import { ADMIN_CONSOLE_NAVIGATION, NAVIGATION_BY_ROLE, WORKSPACE_NAVIGATION } from '../data/navigation.js';
 import { DEFAULT_BASE_SETTINGS } from '../data/base-settings.js';
 
 const STORAGE_KEYS = Object.freeze({ resources: 'fin-ssc-demo:resource-overrides:v1', customResources: 'fin-ssc-demo:custom-resources:v1', grants: 'fin-ssc-demo:grants:v1', base: 'fin-ssc-demo:base-settings:v1', principalPermissions: 'fin-ssc-demo:principal-permissions:v1' });
 const validRoles = new Set(ROLES.map(r => r.key));
 const MODULE_KEYS = Object.freeze(['employee', 'finance', 'manager', 'admin']);
 const ACTION_KEYS = Object.freeze(['discover', 'launch']);
+const ADMIN_PAGES = Object.freeze(['admin-overview', 'resource-settings', 'people-overview', 'audit']);
 let peopleCache = null;
 let auditCache = null;
 
@@ -132,13 +133,18 @@ function runtime() {
   const requestedRole = params.get('role');
   const loginRoleKey = ROLE_BY_KEY[requestedRole] ? requestedRole : 'admin';
   const loginRole = ROLE_BY_KEY[loginRoleKey];
-  const requestedPreview = params.get('viewAs');
-  const effectiveRoleKey = loginRoleKey === 'admin' && ROLE_BY_KEY[requestedPreview] ? requestedPreview : loginRoleKey;
+  // UX-only surface state. Not a production authorization or routing contract.
+  const requestedSurface = params.get('surface');
   const requestedPage = params.get('page') || 'home';
-  const page = loginRoleKey === 'admin' && ['home', 'resource-settings', 'people-overview', 'audit'].includes(requestedPage) ? requestedPage : 'home';
+  const requestedPreview = params.get('viewAs');
+  const previewActive = loginRoleKey === 'admin' && requestedPreview !== 'admin' && Boolean(ROLE_BY_KEY[requestedPreview]);
+  const legacyAdminSurface = loginRoleKey === 'admin' && !requestedSurface && ADMIN_PAGES.includes(requestedPage);
+  const surface = !previewActive && loginRoleKey === 'admin' && (requestedSurface === 'admin' || legacyAdminSurface) ? 'admin' : 'workspace';
+  const effectiveRoleKey = previewActive ? requestedPreview : loginRoleKey;
+  const page = surface === 'admin' && ADMIN_PAGES.includes(requestedPage) ? requestedPage : surface === 'admin' ? 'admin-overview' : 'home';
   const requestedPermissionState = params.get('permissionState');
   const permissionState = requestedPermissionState === 'refresh' || requestedPermissionState === 'reauth' ? requestedPermissionState : 'current';
-  return { loginRoleKey, loginRole, effectiveRoleKey, effectiveRole: ROLE_BY_KEY[effectiveRoleKey], page, permissionState };
+  return { loginRoleKey, loginRole, effectiveRoleKey, effectiveRole: ROLE_BY_KEY[effectiveRoleKey], surface, page, permissionState };
 }
 function normalizeSearch(value) { return String(value || '').trim().toLocaleLowerCase(); }
 function peopleRecords() {
@@ -158,10 +164,11 @@ export function getPortalContext() {
   const granted = new Set(grants.filter(g => g.roleKey === r.effectiveRoleKey).map(g => g.resourceKey));
   const caps = r.loginRole.capabilities || [];
   return Object.freeze({
-    principal: SYNTHETIC_PROFILES[r.loginRoleKey], loginRole: r.loginRole, effectiveRole: r.effectiveRole, page: r.page,
-    navigation: NAVIGATION_BY_ROLE[r.loginRoleKey], resources: catalog.filter(x => x.enabled && granted.has(x.key)), catalog, allRoles: ROLES,
+    principal: SYNTHETIC_PROFILES[r.loginRoleKey], loginRole: r.loginRole, effectiveRole: r.effectiveRole, surface: r.surface, page: r.page,
+    navigation: r.surface === 'admin' ? ADMIN_CONSOLE_NAVIGATION : WORKSPACE_NAVIGATION,
+    legacyNavigation: NAVIGATION_BY_ROLE[r.loginRoleKey], resources: catalog.filter(x => x.enabled && granted.has(x.key)), catalog, allRoles: ROLES,
     baseSettings: Object.freeze({ ...DEFAULT_BASE_SETTINGS, ...read(STORAGE_KEYS.base, {}) }),
-    canPreviewRoles: caps.includes('preview_roles'), canViewComparison: caps.includes('view_comparison') && r.effectiveRoleKey === 'admin', canManageResources: caps.includes('manage_resources'), canViewPeople: caps.includes('view_people'), canViewAudit: caps.includes('view_audit'),
+    canSwitchSurface: r.loginRoleKey === 'admin' && r.effectiveRoleKey === 'admin', canPreviewRoles: caps.includes('preview_roles') && r.surface === 'workspace', canViewComparison: caps.includes('view_comparison') && r.surface === 'workspace' && r.effectiveRoleKey === 'admin', canManageResources: caps.includes('manage_resources'), canViewPeople: caps.includes('view_people'), canViewAudit: caps.includes('view_audit'),
     canViewRuntimeWarning: caps.includes('view_runtime_warning'), syntheticRuntimeWarning: caps.includes('view_runtime_warning') ? SYNTHETIC_RUNTIME_WARNING : null,
     permissionFreshnessState: r.permissionState, syntheticPermissionNotice: SYNTHETIC_PERMISSION_NOTICE[r.permissionState] || null,
     hasGrant: (roleKey, resourceKey) => grants.some(g => g.roleKey === roleKey && g.resourceKey === resourceKey)
