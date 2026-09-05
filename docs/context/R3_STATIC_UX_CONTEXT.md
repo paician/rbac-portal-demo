@@ -10,7 +10,7 @@
 - Canonical repository：`paician/rbac-portal-demo`。
 - 目前 `origin` 的 fetch／push URL：`https://github.com/paician/rbac-portal-demo.git`。
 - R3-SUX-01 授權 baseline：`670e054546511b6d656ce7de93b277e07919fc3f`。
-- 目前 working branch：`feat/r3-sux-01-static-foundation`；R3-SUX-01 implementation 尚未建立 commit。
+- 目前 branch：`main`；R3-SUX-01 Stage revision `2f0e338f21c14b8810cc8531ac43ab0549f13f4b` 已整合並推送至 `origin/main`。
 - Repository identity discrepancy：`RESOLVED`。
 - Resolution evidence：上一輪 GitHub push redirect 明確回報 repository 已移至 `https://github.com/paician/rbac-portal-demo.git`；目前 `origin` 已指向此 canonical URL。
 
@@ -32,9 +32,9 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 
 ## 目前 R3 階段
 
-**R3-SUX-01-R3 i18n polish：IMPLEMENTED / READY FOR HUMAN REVIEW。**
+**R3-SUX-01：CLOSED / MERGED TO MAIN。**
 
-Context Bootstrap、Repository Identity Reconciliation 與 R3-SUX-01 Preflight Repair 均已通過前置 Gate。R3-SUX-01 foundation、R1 View-As repair、R2 sidebar polish 與 R3 visible locale switcher／full-page i18n polish 已完成，現等待 Human UX Final Review。此狀態不授權 R3-SUX-02 或 Production implementation。
+R3-SUX-01 Stage revision 為 `2f0e338f21c14b8810cc8531ac43ab0549f13f4b`。Tabler 1.4.0 foundation、FIN-SSC semantic design tokens、Workspace／Admin Console surfaces、View-As Workspace Preview isolation、`zh-TW`／`zh-CN`／`en-US` visible locale switcher 與 responsive sidebar boundary control 均已整合至 `main`，Human Final Review 為 `PASS`。R3-SUX-02 仍為 `NOT AUTHORIZED`，Production Implementation 維持 `BLOCKED`。
 
 ## 必須保留的 UX 能力
 
@@ -121,4 +121,4 @@ Context Bootstrap、Repository Identity Reconciliation 與 R3-SUX-01 Preflight R
 
 ## 下一個獲授權的任務
 
-目前下一個獲授權的動作僅為 R3-SUX-01-R3 Human UX Final Review。R3-SUX-02 與 Production implementation 均未獲授權；不得自行 commit、push、merge或進入下一 Stage。
+R3-SUX-01 已關閉並整合至 `main`。目前沒有下一個獲授權的 Stage；R3-SUX-02 為 `NOT AUTHORIZED`，Production Implementation 為 `BLOCKED`。未取得明確授權前，不得建立 R3-SUX-02 branch、開始下一 Stage 或加入任何 Production integration。
