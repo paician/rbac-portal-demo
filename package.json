@@ -1,0 +1,9 @@
+{
+  "name": "fin-ssc-rbac-portal-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build-bundle.mjs",
+    "validate:workbench": "node tools/validate-workbench.mjs"
+  }
+}
