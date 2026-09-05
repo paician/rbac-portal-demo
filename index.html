@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="./vendor/tabler/1.4.0/tabler.min.css">
   <link rel="stylesheet" href="./styles/fin-tokens.css">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles/fin-components.css">
   <link rel="stylesheet" href="./styles/r3-shell.css">
 </head>
 <body>
@@ -21,8 +22,8 @@
           <div class="brand-copy"><div class="brand-title">FIN-SSC</div><div id="brandSubtitle" class="brand-subtitle"></div></div>
         </div>
         <div id="environmentMarkers" class="environment-markers">
-          <span id="prototypeMarker" class="badge"></span>
-          <span id="syntheticMarker" class="badge"></span>
+          <span id="prototypeMarker" class="badge fin-badge fin-badge-environment"></span>
+          <span id="syntheticMarker" class="badge fin-badge fin-badge-environment"></span>
         </div>
         <section id="surfaceControl" class="surface-control" hidden>
           <span id="surfaceControlLabel" class="surface-control-label"></span>
@@ -36,7 +37,7 @@
           <div id="runtimeWarningPanel" class="runtime-warning-panel" hidden>
             <div class="runtime-warning-heading">
               <div><div id="runtimeWarningEyebrow" class="eyebrow"></div><strong id="runtimeWarningTitle"></strong></div>
-              <span id="runtimeAuthorizationBadge" class="runtime-status-badge"></span>
+              <span id="runtimeAuthorizationBadge" class="runtime-status-badge badge fin-badge fin-badge-runtime"></span>
             </div>
             <dl class="runtime-warning-grid">
               <div><dt id="runtimeAuthorizationLabel"></dt><dd id="runtimeAuthorizationValue"></dd></div>
@@ -55,14 +56,14 @@
             <span id="identityAvatar" class="identity-avatar">E</span>
             <span class="identity-compact-copy">
               <span id="identityName" class="identity-compact-name"></span>
-              <span id="identityRole" class="role-badge"></span>
+              <span id="identityRole" class="role-badge badge fin-badge fin-badge-role"></span>
             </span>
             <span class="identity-caret" aria-hidden="true">⌄</span>
           </button>
           <div id="identityPanel" class="identity-panel" hidden>
             <div class="identity-panel-heading">
               <span class="identity-avatar panel-avatar">E</span>
-              <div><strong id="identityPanelName"></strong><span id="identityPanelRole" class="role-badge"></span></div>
+              <div><strong id="identityPanelName"></strong><span id="identityPanelRole" class="role-badge badge fin-badge fin-badge-role"></span></div>
             </div>
             <dl class="identity-grid">
               <div><dt id="labelLarkName"></dt><dd id="profileName"></dd></div>
@@ -80,11 +81,11 @@
     <main class="main-content container-xl">
       <header class="topbar">
         <div class="global-shell-bar d-flex">
-          <div class="mobile-topbar-row"><button id="mobileMenuButton" class="mobile-menu-button btn" type="button">☰</button><strong>FIN-SSC</strong></div>
+          <div class="mobile-topbar-row"><button id="mobileMenuButton" class="mobile-menu-button btn fin-btn fin-btn-quiet" type="button">☰</button><strong>FIN-SSC</strong></div>
           <label class="locale-control" for="localeSwitcher">
             <span class="locale-icon" aria-hidden="true">🌐</span>
             <span id="localeSwitcherLabel" class="visually-hidden"></span>
-            <select id="localeSwitcher" class="locale-switcher" autocomplete="off">
+            <select id="localeSwitcher" class="locale-switcher form-select fin-form-control" autocomplete="off">
               <option value="zh-TW">繁體中文</option>
               <option value="zh-CN">简体中文</option>
               <option value="en-US">English</option>
@@ -93,13 +94,13 @@
         </div>
         <div class="surface-heading">
           <div><div id="surfaceEyebrow" class="eyebrow"></div><h1 id="surfaceTitle"></h1><p id="surfaceDescription"></p></div>
-          <span id="surfaceAdminBadge" class="surface-context-badge badge" hidden></span>
+          <span id="surfaceAdminBadge" class="surface-context-badge badge fin-badge fin-badge-control" hidden></span>
         </div>
         <section id="roleControl" class="role-control" hidden>
           <div id="roleEyebrow" class="eyebrow"></div>
           <div class="preview-controls d-flex flex-wrap gap-2">
             <div id="roleSwitcher" class="role-switcher"></div>
-            <button id="previewExit" class="preview-exit-button btn" type="button" data-preview-exit="true" hidden></button>
+            <button id="previewExit" class="preview-exit-button btn fin-btn fin-btn-secondary" type="button" data-preview-exit="true" hidden></button>
           </div>
           <p id="roleHelper" class="role-helper"></p>
         </section>
@@ -122,48 +123,48 @@
           <div class="landscape"><span class="sun"></span><span class="ridge ridge-back"></span><span class="ridge ridge-front"></span></div>
         </section>
         <section id="metricGrid" class="metric-grid"></section>
-        <section class="panel resource-panel card fin-surface-card">
-          <div class="panel-heading"><div><div id="catalogEyebrow" class="eyebrow"></div><h2 id="catalogTitle"></h2><p id="catalogSubtitle"></p></div><span id="resourceCount" class="count-chip"></span></div>
-          <div class="table-wrap"><table><thead><tr><th id="resourceSystemHeader"></th><th id="resourceCategoryHeader"></th><th id="resourceDescriptionHeader"></th><th id="resourceAccessHeader"></th><th id="resourceActionHeader"></th></tr></thead><tbody id="resourceRows"></tbody></table></div>
+        <section class="panel resource-panel card fin-surface-card fin-card">
+          <div class="panel-heading"><div><div id="catalogEyebrow" class="eyebrow"></div><h2 id="catalogTitle"></h2><p id="catalogSubtitle"></p></div><span id="resourceCount" class="count-chip badge fin-badge fin-badge-neutral"></span></div>
+          <div class="table-wrap fin-table-wrap"><table class="table table-vcenter fin-table"><thead><tr><th id="resourceSystemHeader"></th><th id="resourceCategoryHeader"></th><th id="resourceDescriptionHeader"></th><th id="resourceAccessHeader"></th><th id="resourceActionHeader"></th></tr></thead><tbody id="resourceRows"></tbody></table></div>
           <div id="mobileResourceList" class="mobile-resource-list"></div>
         </section>
-        <section id="reservedCapabilities" class="reserved-capabilities card fin-surface-card">
-          <div class="reserved-capabilities-heading"><div><div id="reservedEyebrow" class="eyebrow"></div><h2 id="reservedTitle"></h2><p id="reservedDescription"></p></div><span id="reservedBadge" class="badge"></span></div>
+        <section id="reservedCapabilities" class="reserved-capabilities card fin-card fin-surface-card">
+          <div class="reserved-capabilities-heading"><div><div id="reservedEyebrow" class="eyebrow"></div><h2 id="reservedTitle"></h2><p id="reservedDescription"></p></div><span id="reservedBadge" class="badge fin-badge fin-badge-reserved"></span></div>
           <div id="reservedCapabilityGrid" class="row g-3"></div>
         </section>
-        <section id="comparisonPanel" class="panel" hidden>
-          <div class="panel-heading"><div><div id="comparisonEyebrow" class="eyebrow"></div><h2 id="comparisonTitle"></h2><p id="comparisonSubtitle"></p></div><span id="comparisonAdminChip" class="admin-chip"></span></div>
-          <div class="table-wrap"><table class="comparison-table"><thead id="comparisonHead"></thead><tbody id="comparisonRows"></tbody></table></div>
+        <section id="comparisonPanel" class="panel card fin-card" hidden>
+          <div class="panel-heading"><div><div id="comparisonEyebrow" class="eyebrow"></div><h2 id="comparisonTitle"></h2><p id="comparisonSubtitle"></p></div><span id="comparisonAdminChip" class="admin-chip badge fin-badge fin-badge-control"></span></div>
+          <div class="table-wrap fin-table-wrap"><table class="comparison-table table table-vcenter fin-table"><thead id="comparisonHead"></thead><tbody id="comparisonRows"></tbody></table></div>
           <div class="legend"><span class="status yes">✓</span><span id="legendYes"></span><span class="status no">—</span><span id="legendNo"></span></div>
         </section>
         <section class="prototype-note"><strong id="prototypeTitle"></strong><span id="prototypeBody"></span></section>
       </section>
 
       <section id="adminOverviewView" class="page-view" hidden>
-        <section class="page-hero admin-overview-hero"><div><div id="adminOverviewEyebrow" class="eyebrow"></div><h1 id="adminOverviewTitle"></h1><p id="adminOverviewDescription"></p></div><span id="adminOverviewBadge" class="hero-badge"></span></section>
+        <section class="page-hero page-header fin-page-header admin-overview-hero"><div><div id="adminOverviewEyebrow" class="eyebrow"></div><h1 id="adminOverviewTitle"></h1><p id="adminOverviewDescription"></p></div><span id="adminOverviewBadge" class="hero-badge badge fin-badge fin-badge-control"></span></section>
         <div id="adminOverviewGrid" class="admin-overview-grid row g-3"></div>
       </section>
 
       <section id="resourceSettingsView" class="page-view" hidden>
-        <section class="page-hero"><div><div id="settingsEyebrow" class="eyebrow"></div><h1 id="settingsTitle"></h1><p id="settingsSubtitle"></p></div><span id="settingsHeroBadge" class="hero-badge"></span></section>
-        <section class="panel settings-shell"><div id="settingsTabs" class="settings-tabs"></div><div id="settingsContent" class="settings-content"></div></section>
+        <section class="page-hero page-header fin-page-header"><div><div id="settingsEyebrow" class="eyebrow"></div><h1 id="settingsTitle"></h1><p id="settingsSubtitle"></p></div><span id="settingsHeroBadge" class="hero-badge badge fin-badge fin-badge-control"></span></section>
+        <section class="panel settings-shell card fin-card fin-card-flush"><div id="settingsTabs" class="settings-tabs nav nav-tabs fin-tabs" role="tablist"></div><div id="settingsContent" class="settings-content"></div></section>
       </section>
 
       <section id="peopleOverviewView" class="page-view" hidden>
-        <section class="page-hero"><div><div id="peopleEyebrow" class="eyebrow"></div><h1 id="peopleTitle"></h1><p id="peopleSubtitle"></p></div><span id="peopleHeroBadge" class="hero-badge"></span></section>
-        <section class="panel directory-panel">
+        <section class="page-hero page-header fin-page-header"><div><div id="peopleEyebrow" class="eyebrow"></div><h1 id="peopleTitle"></h1><p id="peopleSubtitle"></p></div><span id="peopleHeroBadge" class="hero-badge badge fin-badge fin-badge-info"></span></section>
+        <section class="panel directory-panel card fin-card">
           <div class="directory-toolbar">
-            <label class="search-field"><span aria-hidden="true">⌕</span><input id="peopleSearch" type="search" autocomplete="off"></label>
-            <select id="peopleDepartmentFilter" class="filter-select"><option value=""></option></select>
-            <div id="peopleViewMode" class="view-segment" role="group"><button id="peopleAllMode" class="segment-button active" type="button"></button><button id="peopleGroupMode" class="segment-button" type="button"></button></div>
+            <label class="search-field input-group fin-search-control"><span aria-hidden="true">⌕</span><input id="peopleSearch" class="form-control fin-form-control" type="search" autocomplete="off"></label>
+            <select id="peopleDepartmentFilter" class="filter-select form-select fin-form-control"><option value=""></option></select>
+            <div id="peopleViewMode" class="view-segment btn-group" role="group"><button id="peopleAllMode" class="segment-button btn fin-btn fin-btn-quiet active" type="button"></button><button id="peopleGroupMode" class="segment-button btn fin-btn fin-btn-quiet" type="button"></button></div>
             <span id="peopleResultCount" class="directory-count"></span>
           </div>
           <div id="peopleAllList">
-            <div class="table-wrap people-table-wrap"><table><thead id="peopleHead"></thead><tbody id="peopleRows"></tbody></table></div>
+            <div class="table-wrap fin-table-wrap people-table-wrap"><table class="table table-vcenter fin-table"><thead id="peopleHead"></thead><tbody id="peopleRows"></tbody></table></div>
             <div id="mobilePeopleList" class="mobile-people-list"></div>
           </div>
           <div id="peopleGroupedList" class="people-grouped-list" hidden></div>
-          <div class="pagination-bar"><button id="peoplePrev" class="secondary-button" type="button"></button><span id="peoplePageStatus"></span><button id="peopleNext" class="secondary-button" type="button"></button></div>
+          <div class="pagination-bar pagination fin-pagination"><button id="peoplePrev" class="secondary-button btn fin-btn fin-btn-secondary" type="button"></button><span id="peoplePageStatus"></span><button id="peopleNext" class="secondary-button btn fin-btn fin-btn-secondary" type="button"></button></div>
         </section>
       </section>
 
@@ -172,17 +173,17 @@
       </section>
 
       <section id="auditView" class="page-view" hidden>
-        <section class="page-hero"><div><div id="auditEyebrow" class="eyebrow"></div><h1 id="auditTitle"></h1><p id="auditSubtitle"></p></div><span id="auditHeroBadge" class="hero-badge"></span></section>
-        <section class="panel audit-panel">
+        <section class="page-hero page-header fin-page-header"><div><div id="auditEyebrow" class="eyebrow"></div><h1 id="auditTitle"></h1><p id="auditSubtitle"></p></div><span id="auditHeroBadge" class="hero-badge badge fin-badge fin-badge-info"></span></section>
+        <section class="panel audit-panel card fin-card">
           <div class="audit-boundary" id="auditBoundary"></div>
           <div class="directory-toolbar">
-            <label class="search-field"><span aria-hidden="true">⌕</span><input id="auditSearch" type="search" autocomplete="off"></label>
-            <select id="auditTypeFilter" class="filter-select"><option value=""></option></select>
+            <label class="search-field input-group fin-search-control"><span aria-hidden="true">⌕</span><input id="auditSearch" class="form-control fin-form-control" type="search" autocomplete="off"></label>
+            <select id="auditTypeFilter" class="filter-select form-select fin-form-control"><option value=""></option></select>
             <span id="auditResultCount" class="directory-count"></span>
           </div>
-          <div class="table-wrap audit-table-wrap"><table><thead id="auditHead"></thead><tbody id="auditRows"></tbody></table></div>
+          <div class="table-wrap fin-table-wrap audit-table-wrap"><table class="table table-vcenter fin-table"><thead id="auditHead"></thead><tbody id="auditRows"></tbody></table></div>
           <div id="mobileAuditList" class="mobile-audit-list"></div>
-          <div class="pagination-bar"><button id="auditPrev" class="secondary-button" type="button"></button><span id="auditPageStatus"></span><button id="auditNext" class="secondary-button" type="button"></button></div>
+          <div class="pagination-bar pagination fin-pagination"><button id="auditPrev" class="secondary-button btn fin-btn fin-btn-secondary" type="button"></button><span id="auditPageStatus"></span><button id="auditNext" class="secondary-button btn fin-btn fin-btn-secondary" type="button"></button></div>
         </section>
       </section>
     </main>
@@ -190,7 +191,7 @@
 
   <dialog id="aboutDialog" class="about-dialog">
     <form method="dialog" class="about-dialog-card">
-      <div class="about-dialog-mark">?</div><div id="aboutSubtitle" class="eyebrow"></div><h2 id="aboutTitle"></h2><p id="aboutBody"></p><div id="aboutBoundary" class="about-boundary"></div><button id="aboutClose" class="secondary-button" value="close"></button>
+      <div class="about-dialog-mark">?</div><div id="aboutSubtitle" class="eyebrow"></div><h2 id="aboutTitle"></h2><p id="aboutBody"></p><div id="aboutBoundary" class="about-boundary"></div><button id="aboutClose" class="secondary-button btn fin-btn fin-btn-secondary" value="close"></button>
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

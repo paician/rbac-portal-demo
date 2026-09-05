@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node tools/build-bundle.mjs",
     "validate:workbench": "node tools/validate-workbench.mjs",
-    "validate:r3-sux-01": "node tools/validate-r3-sux-01.mjs"
+    "validate:r3-sux-01": "node tools/validate-r3-sux-01.mjs",
+    "validate:r3-sux-02": "node tools/validate-r3-sux-02.mjs"
   }
 }

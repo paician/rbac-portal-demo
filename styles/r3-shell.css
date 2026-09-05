@@ -32,6 +32,10 @@ body {
   border-radius: 11px;
   background: rgba(255, 255, 255, .78);
   box-shadow: var(--fin-shadow-sm);
+  transition:
+    background-color var(--fin-motion-fast),
+    border-color var(--fin-motion-fast),
+    box-shadow var(--fin-motion-fast);
 }
 
 .locale-icon {
@@ -129,6 +133,10 @@ body {
   font-weight: 800;
   line-height: 1.2;
   white-space: normal;
+  transition:
+    background-color var(--fin-motion-base),
+    color var(--fin-motion-base),
+    box-shadow var(--fin-motion-base);
 }
 
 .surface-button.btn:hover {
@@ -175,6 +183,12 @@ body {
   line-height: 1.35;
   white-space: normal;
   box-shadow: var(--fin-shadow-sm);
+  transition:
+    background-color var(--fin-motion-base),
+    border-color var(--fin-motion-base),
+    color var(--fin-motion-base),
+    box-shadow var(--fin-motion-base),
+    transform var(--fin-motion-base);
 }
 
 .preview-exit-button.btn:hover {
@@ -241,13 +255,6 @@ body[data-surface="admin"] .admin-overview-hero {
   font-weight: 850;
   letter-spacing: .12em;
   text-transform: uppercase;
-}
-
-.fin-surface-card.card {
-  border-color: var(--fin-border);
-  border-radius: var(--fin-radius-lg);
-  background: rgba(255, 255, 255, .82);
-  box-shadow: var(--fin-shadow-sm);
 }
 
 .reserved-capabilities {
@@ -390,7 +397,11 @@ body[data-surface="admin"] .admin-overview-hero {
   font-size: 23px;
   font-weight: 850;
   line-height: 1;
-  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+  transition:
+    transform var(--fin-motion-fast),
+    border-color var(--fin-motion-fast),
+    box-shadow var(--fin-motion-fast),
+    background-color var(--fin-motion-fast);
 }
 
 .sidebar-collapse.r3-sidebar-boundary-control:hover {
@@ -404,6 +415,19 @@ body[data-surface="admin"] .admin-overview-hero {
   outline: 3px solid rgba(196, 123, 40, .32);
   outline-offset: 3px;
   border-color: var(--fin-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .locale-control,
+  .surface-button.btn,
+  .preview-exit-button.btn,
+  .sidebar-collapse.r3-sidebar-boundary-control {
+    transition-duration: 1ms;
+  }
+
+  .sidebar-collapse.r3-sidebar-boundary-control:hover {
+    transform: none;
+  }
 }
 
 .sidebar-collapsed .environment-markers,

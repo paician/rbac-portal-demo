@@ -23,6 +23,10 @@
   --fin-shadow-sm: 0 7px 22px rgba(70, 41, 22, .05);
   --fin-shadow-md: 0 14px 36px rgba(70, 41, 22, .08), 0 2px 6px rgba(70, 41, 22, .05);
 
+  --fin-motion-fast: 160ms ease;
+  --fin-motion-base: 180ms ease;
+  --fin-motion-slow: 220ms ease;
+
   --fin-sidebar-width: 255px;
   --fin-content-max: 1640px;
 

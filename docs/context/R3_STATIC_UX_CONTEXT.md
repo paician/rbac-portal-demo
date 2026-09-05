@@ -10,7 +10,8 @@
 - Canonical repository：`paician/rbac-portal-demo`。
 - 目前 `origin` 的 fetch／push URL：`https://github.com/paician/rbac-portal-demo.git`。
 - R3-SUX-01 授權 baseline：`670e054546511b6d656ce7de93b277e07919fc3f`。
-- 目前 branch：`main`；R3-SUX-01 Stage revision `2f0e338f21c14b8810cc8531ac43ab0549f13f4b` 已整合並推送至 `origin/main`。
+- R3-SUX-02 授權 baseline：`7f6c172435351ceb9ab945aca24ddc442d2bc6af`。
+- 目前 working branch：`feat/r3-sux-02-component-consolidation`；R3-SUX-02 implementation 尚未建立 commit。
 - Repository identity discrepancy：`RESOLVED`。
 - Resolution evidence：上一輪 GitHub push redirect 明確回報 repository 已移至 `https://github.com/paician/rbac-portal-demo.git`；目前 `origin` 已指向此 canonical URL。
 
@@ -32,9 +33,9 @@ R3 必須在此 repository 內延續已驗證的 R2 UX，不是 greenfield rebui
 
 ## 目前 R3 階段
 
-**R3-SUX-01：CLOSED / MERGED TO MAIN。**
+**R3-SUX-02：HUMAN REVIEW PASS / READY FOR GIT CHECKPOINT。**
 
-R3-SUX-01 Stage revision 為 `2f0e338f21c14b8810cc8531ac43ab0549f13f4b`。Tabler 1.4.0 foundation、FIN-SSC semantic design tokens、Workspace／Admin Console surfaces、View-As Workspace Preview isolation、`zh-TW`／`zh-CN`／`en-US` visible locale switcher 與 responsive sidebar boundary control 均已整合至 `main`，Human Final Review 為 `PASS`。R3-SUX-02 仍為 `NOT AUTHORIZED`，Production Implementation 維持 `BLOCKED`。
+R3-SUX-01 已關閉並整合至 `main`。R3-SUX-02 元件收斂與 R1 motion repair 均已完成，Human UX Re-Review 已確認 Sidebar、Role selector、Resource launch、主要按鈕、Switch、Toast、Mobile drawer 與 R3 shell controls 通過；Workbench／Matrix 與 mobile-specific information architecture 保持原結構，Runtime Warning behavior／popover architecture未重構。目前僅等待 R3-SUX-02 Git checkpoint，尚未合併至 `main`。R3-SUX-03 為 `NOT AUTHORIZED`，Production Implementation 維持 `BLOCKED`。
 
 ## 必須保留的 UX 能力
 
@@ -95,6 +96,7 @@ R3-SUX-01 Stage revision 為 `2f0e338f21c14b8810cc8531ac43ab0549f13f4b`。Tabler
 - Static Vanilla HTML／CSS／JavaScript prototype 已存在，可直接開啟或透過 local static server 執行。
 - 已以 local vendored `@tabler/core 1.4.0` 建立 foundation adoption；未加入 Tabler JavaScript 或 framework runtime。
 - 已新增 FIN-SSC semantic token stylesheet 與 R3 shell override stylesheet；既有 `styles.css` 與 validated feature component styling 仍保留。
+- 已新增 FIN-SSC shared semantic component stylesheet，統一共用 button、badge、card、page header、form、tab、pagination 與 generic table presentation；`styles.css` 持續作為 R2 validated compatibility layer，`r3-shell.css` 保留 surface／shell／layout responsibility。
 - 已建立 Workspace／Admin Console UX surface、Admin-only surface switcher、minimal Admin Overview，以及 Workspace 的 disabled Reserved Ticket／Workflow／AI positions。
 - `View-As` 非 Admin 身分時會進入 Workspace Preview Mode，隱藏 Admin Console surface selector 與 navigation，並保留明確返回管理員的控制；正常 Admin 與 Legacy Admin page URL 仍可進入 Admin Console context。
 - Desktop sidebar collapse control 已調整為從 sidebar／main content 邊界凸出的 dedicated control；mobile／H5 仍使用既有 drawer navigation。
@@ -121,4 +123,4 @@ R3-SUX-01 Stage revision 為 `2f0e338f21c14b8810cc8531ac43ab0549f13f4b`。Tabler
 
 ## 下一個獲授權的任務
 
-R3-SUX-01 已關閉並整合至 `main`。目前沒有下一個獲授權的 Stage；R3-SUX-02 為 `NOT AUTHORIZED`，Production Implementation 為 `BLOCKED`。未取得明確授權前，不得建立 R3-SUX-02 branch、開始下一 Stage 或加入任何 Production integration。
+目前下一個獲授權的動作僅為 R3-SUX-02 Git checkpoint 與 feature branch push；不得合併至 `main`。R3-SUX-03 為 `NOT AUTHORIZED`，Production Implementation 為 `BLOCKED`；未取得明確授權前，不得開始下一 Stage 或加入任何 Production integration。
